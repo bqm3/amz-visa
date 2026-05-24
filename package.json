@@ -1,0 +1,30 @@
+{
+  "name": "amz-us-app",
+  "version": "1.0.0",
+  "description": "AmzUS",
+  "main": "main.js",
+  "scripts": {
+    "start": "qode main.js",
+    "test": "qode test.js",
+    "build": "nodegui-packer --init AmzUS",
+    "postbuild": "nodegui-packer --pack dist",
+    "ver": "qode --version",
+    "package": "nodegui-builder --name MyApp --output ./output --main main.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "@nodegui/nodegui": "^0.71.0",
+    "@nodegui/packer": "github:HerokeyVN/nodegui-packer",
+    "axios": "^1.8.4",
+    "node-2fa": "^2.0.3",
+    "puppeteer": "^24.6.1",
+    "random-addresses-generator": "github:HerokeyVN/random-addresses-generator"
+  },
+  "devDependencies": {
+    "fs-extra": "^11.3.0",
+    "nodegui-builder": "github:HerokeyVN/nodegui-builder",
+    "nodegui-packer": "github:HerokeyVN/nodegui-packer"
+  }
+}
