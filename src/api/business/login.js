@@ -29,8 +29,8 @@ async function login(page, { email, pass, code, proxy }) {
         const targetPage = page;
         await targetPage.goto('https://www.amazon.com/business/register/org/landing?ref_=ab_reg_signinsignup'); 
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        targetPage.reload();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await targetPage.reload({ waitUntil: 'domcontentloaded', timeout: 8000 });
     }
     {
         const targetPage = page;
@@ -62,7 +62,7 @@ async function login(page, { email, pass, code, proxy }) {
         const targetPage = page;
         const promises = [];
         const startWaitingForEvents = () => {
-            promises.push(targetPage.waitForNavigation());
+            promises.push(targetPage.waitForNavigation({ timeout: 8000 }).catch(() => null));
         }
         await puppeteer.Locator.race([
             targetPage.locator('::-p-aria(Get started)'),
@@ -110,7 +110,7 @@ async function login(page, { email, pass, code, proxy }) {
         const targetPage = page;
         const promises = [];
         const startWaitingForEvents = () => {
-            promises.push(targetPage.waitForNavigation());
+            promises.push(targetPage.waitForNavigation({ timeout: 8000 }).catch(() => null));
         }
         await puppeteer.Locator.race([
             targetPage.locator('::-p-aria(Sign in)'),
@@ -191,7 +191,7 @@ async function login(page, { email, pass, code, proxy }) {
         const targetPage = page;
         const promises = [];
         const startWaitingForEvents = () => {
-            promises.push(targetPage.waitForNavigation());
+            promises.push(targetPage.waitForNavigation({ timeout: 8000 }).catch(() => null));
         }
         await puppeteer.Locator.race([
             targetPage.locator('::-p-aria(Sign in)'),
@@ -216,7 +216,7 @@ async function handleCapcha(page, timeout) {
     let captchaResolved = false;
     
     while (!captchaResolved) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 300));
         
         let captchaForm;
         try {
@@ -275,7 +275,7 @@ async function handleCapcha(page, timeout) {
         const promises = [];
         const startWaitingForEvents = () => {
             promises.push(
-                page.waitForNavigation({ timeout: 60000 })
+                page.waitForNavigation({ timeout: 8000 })
                     .catch(err => {
                         console.log("Navigation timeout after CAPTCHA submission, continuing anyway");
                         console.app("Navigation timeout after CAPTCHA submission, continuing anyway");

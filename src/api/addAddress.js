@@ -201,18 +201,20 @@ async function getAddressData(maxRetries = 3) {
     return fallbackAddress;
 }
 
-async function addAddress(page) {
+async function addAddress(page, options = {}) {
     // ✅ SỬ DỤNG FUNCTION MỚI VỚI ERROR HANDLING
-    let addressData = await getAddressData();
+    const apiRetries = Number.isInteger(options.apiRetries) ? options.apiRetries : 3;
+    let addressData = await getAddressData(apiRetries);
     
     console.log('🏠 Final address data:', JSON.stringify(addressData, null, 2));
 
-    {
+    const alreadyOnAddressForm = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
+    if (!alreadyOnAddressForm) {
         const targetPage = page;
         const promises = [];
         const startWaitingForEvents = () => {
             promises.push(targetPage.waitForNavigation());
-        }
+        };
         await puppeteer.Locator.race([
             targetPage.locator('div.a-color-tertiary'),
             targetPage.locator('::-p-xpath(//*[@id=\\"ya-myab-address-add-link\\"]/div/div/div[2])'),
@@ -285,81 +287,59 @@ async function addAddress(page) {
     }
 
     // ✅ ADDRESS VALIDATION LOOP VỚI RETRY LOGIC
-    let checked = false;
     let addressRetries = 0;
-    const maxAddressRetries = 5;
+    const maxAddressRetries = 3;
+    let filled = false;
 
-    while (!checked && addressRetries < maxAddressRetries) {
+    const stateMap = {
+        alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO',
+        connecticut: 'CT', delaware: 'DE', florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID',
+        illinois: 'IL', indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY', louisiana: 'LA',
+        maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS',
+        missouri: 'MO', montana: 'MT', nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH',
+        'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC',
+        'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA',
+        'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD', tennessee: 'TN',
+        texas: 'TX', utah: 'UT', vermont: 'VT', virginia: 'VA', washington: 'WA',
+        'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY', 'district of columbia': 'DC'
+    };
+
+    while (!filled && addressRetries < maxAddressRetries) {
         addressRetries++;
-        
-        // ✅ ENSURE ADDRESS IS NOT UNDEFINED
-        if (!addressData || !addressData.buildingNo || addressData.buildingNo === 'undefined') {
-            console.log(`⚠️ Address undefined on retry ${addressRetries}, generating new one...`);
-            addressData = await getAddressData();
+        if (!addressData || !addressData.buildingNo) {
+            addressData = await getAddressData(apiRetries);
         }
-        
-        const addressToUse = String(addressData.buildingNo).trim();
-        console.log(`🏠 Attempt ${addressRetries}/${maxAddressRetries} - Using address:`, addressToUse);
-        
-        const targetPage = page;
-        
+
+        const addressToUse = String(addressData.buildingNo || '').trim();
+        const cityToUse = String(addressData.city || '').trim();
+        const zipToUse = String(addressData.zipCode || '').trim();
+        let stateToUse = String(addressData.state || '').trim();
+        const normalizedState = stateToUse.toLowerCase();
+        if (stateToUse.length !== 2 && stateMap[normalizedState]) {
+            stateToUse = stateMap[normalizedState];
+        } else {
+            stateToUse = stateToUse.toUpperCase();
+        }
+
+        console.log(`?? Attempt ${addressRetries}/${maxAddressRetries} - Using address: ${addressToUse}`);
+
         try {
-            // Clear field first
-            await targetPage.evaluate(() => {
-                const field = document.querySelector('#address-ui-widgets-enterAddressLine1');
-                if (field) {
-                    field.value = '';
-                    field.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            });
-            
-            await puppeteer.Locator.race([
-                targetPage.locator('::-p-aria(Address)'),
-                targetPage.locator('#address-ui-widgets-enterAddressLine1'),
-                targetPage.locator('::-p-xpath(//*[@id=\\"address-ui-widgets-enterAddressLine1\\"])'),
-                targetPage.locator(':scope >>> #address-ui-widgets-enterAddressLine1')
-            ])
-                .setTimeout(timeout)
-                .fill(addressToUse);
-
-            // Wait for suggestions to appear
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Try to click suggestion
-            try {    
-                await puppeteer.Locator.race([
-                    targetPage.locator('#awz-address-suggestion-0'),
-                    targetPage.locator('::-p-xpath(//*[@id=\\"awz-address-suggestion-0\\"])'),
-                    targetPage.locator(':scope >>> #awz-address-suggestion-0')
-                ])
-                    .setTimeout(3000)
-                    .click({
-                        offset: {
-                            x: 328.7999954223633,
-                            y: 13.600006103515625,
-                        },
-                    });
-                
-                console.log('✅ Address suggestion accepted:', addressToUse);
-                checked = true;
-            } catch (suggestionError) {
-                console.log(`❌ Address suggestion failed for: ${addressToUse}`);
-                console.log('Error:', suggestionError.message);
-                
-                // Generate new address for next attempt
-                addressData = await getAddressData();
-            }
+            await page.waitForSelector('#address-ui-widgets-enterAddressLine1', { timeout: 10000 });
+            await page.locator('#address-ui-widgets-enterAddressLine1').fill(addressToUse);
+            await page.locator('#address-ui-widgets-enterAddressCity').fill(cityToUse);
+            await page.select('#address-ui-widgets-enterAddressStateOrRegion-dropdown-nativeId', stateToUse);
+            await page.locator('#address-ui-widgets-enterAddressPostalCode').fill(zipToUse);
+            filled = true;
         } catch (inputError) {
-            console.log(`❌ Address input failed:`, inputError.message);
-            addressData = await getAddressData();
+            console.log(`? Address input failed: ${inputError.message}`);
+            addressData = await getAddressData(apiRetries);
         }
     }
 
-    if (!checked) {
-        throw new Error('Failed to add address after maximum retries');
+    if (!filled) {
+        throw new Error('Failed to fill address fields');
     }
 
-    // ✅ CONTINUE WITH REST OF THE PROCESS
     {
         const targetPage = page;
         await puppeteer.Locator.race([
@@ -384,6 +364,7 @@ async function addAddress(page) {
         }
         await puppeteer.Locator.race([
             targetPage.locator('::-p-aria(Add address)'),
+            targetPage.locator('#address-ui-widgets-form-submit-button input.a-button-input'),
             targetPage.locator('span:nth-of-type(3) input'),
             targetPage.locator('::-p-xpath(//*[@id=\\"address-ui-widgets-form-submit-button\\"]/span/input)'),
             targetPage.locator(':scope >>> span:nth-of-type(3) input')

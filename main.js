@@ -5,6 +5,56 @@ const puppeteer = require('puppeteer');
 const { QMainWindow, QWidget, QLabel, QLineEdit, QPushButton, QTextEdit, 
         QCheckBox, QBoxLayout, QApplication, QIcon } = require("@nodegui/nodegui");
 
+function setupTimestampedLogging() {
+  let lastTs = Date.now();
+  const methods = ["log", "info", "warn", "error", "debug"];
+  const original = {};
+
+  const buildPrefix = () => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const ms = String(now.getMilliseconds()).padStart(3, "0");
+    const nowTs = Date.now();
+    const delta = ((nowTs - lastTs) / 1000).toFixed(3);
+    lastTs = nowTs;
+    return `[${hh}:${mm}:${ss}.${ms} +${delta}s]`;
+  };
+
+  for (const m of methods) {
+    original[m] = console[m].bind(console);
+    console[m] = (...args) => {
+      original[m](buildPrefix(), ...args);
+    };
+  }
+
+  let appFn = null;
+  Object.defineProperty(console, "app", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      return appFn;
+    },
+    set(fn) {
+      if (typeof fn !== "function") {
+        appFn = fn;
+        return;
+      }
+      appFn = (...args) => {
+        original.log(buildPrefix(), ...args);
+        try {
+          return fn(...args);
+        } catch (_) {
+          return undefined;
+        }
+      };
+    }
+  });
+}
+
+setupTimestampedLogging();
+
 // Global values
 global.data = {};
 global.data.parentAcc = []; // hoặc {}

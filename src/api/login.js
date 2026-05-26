@@ -12,15 +12,15 @@ async function handleConnectionTimeout(page, retryCount = 0) {
     console.app(`⚠️ Connection timeout detected, waiting 30s before retry (attempt ${retryCount + 1}/3)...`);
     
     // Wait 30 seconds
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     try {
         // Reload page
         console.log(`🔄 Refreshing page after timeout...`);
-        await page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
+        await page.reload({ waitUntil: 'domcontentloaded', timeout: 7000 });
         
         // Wait for page to stabilize
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         console.log(`✅ Page refreshed successfully`);
         return true;
@@ -31,23 +31,18 @@ async function handleConnectionTimeout(page, retryCount = 0) {
 }
 
 // ✅ SINGLE OPTIMIZED waitForPageLoad FUNCTION
-async function waitForPageLoad(page, timeout = 15000) {
+async function waitForPageLoad(page, timeout = 5000) {
     try {
         console.log('🔄 Waiting for page to load completely...');
-        
-        // Wait for document ready state
-        await page.evaluate(() => {
-            return new Promise((resolve) => {
-                if (document.readyState === 'complete') {
-                    resolve();
-                } else {
-                    window.addEventListener('load', resolve);
-                }
-            });
-        });
-        
-        // Simple wait for content to stabilize (no navigation wait that causes issues)
-        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Bounded wait: never block forever if Amazon keeps page in non-complete state.
+        await page.waitForFunction(
+            () => document.readyState === 'complete' || document.readyState === 'interactive',
+            { timeout: Math.max(1000, timeout) }
+        ).catch(() => null);
+
+        // Short stabilization delay
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         console.log('✅ Page loaded successfully');
         
@@ -55,8 +50,134 @@ async function waitForPageLoad(page, timeout = 15000) {
         console.log(`⚠️ Page load error: ${error.message}, continuing anyway...`);
         
         // Minimal fallback
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 300));
     }
+}
+
+async function isCaptchaPage(page) {
+    try {
+        return await page.evaluate(() => {
+            return !!(
+                document.querySelector('form[action="/errors/validateCaptcha"] img') ||
+                document.querySelector('#captchacharacters') ||
+                document.body.innerText.includes('Enter the characters you see below') ||
+                document.body.innerText.includes('Type the characters you see in this image')
+            );
+        });
+    } catch (_) {
+        return false;
+    }
+}
+
+async function waitForManualCaptchaSolve(page, timeoutMs = 20000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const stillCaptcha = await isCaptchaPage(page);
+        if (!stillCaptcha) {
+            console.log("✅ CAPTCHA solved manually, continuing login...");
+            console.app("✅ CAPTCHA solved manually, continuing login...");
+            return true;
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    return false;
+}
+
+async function ensureEmailInputVisible(page) {
+    const selectors = ['#ap_email_login', '#ap_email', 'input[name="email"]', 'input[type="email"]', 'input[name="ap_email"]'];
+    for (const sel of selectors) {
+        try {
+            await page.waitForSelector(sel, { timeout: 5000 });
+            return sel;
+        } catch (_) {}
+    }
+    return null;
+}
+
+async function resolveAccountSwitcherFast(page) {
+    try {
+        const currentUrl = page.url() || '';
+        const urlLooksLikeSwitcher =
+            currentUrl.includes('/ax/claim') ||
+            currentUrl.includes('/ax/signin') ||
+            currentUrl.includes('switchaccount') ||
+            currentUrl.includes('switch_account=picker') ||
+            currentUrl.includes('switcher_type=');
+
+        // Avoid probing with repeated evaluate calls when page is not in switcher context.
+        if (!urlLooksLikeSwitcher) return false;
+
+        for (let i = 0; i < 6; i++) {
+            const handled = await Promise.race([
+                page.evaluate(() => {
+                const url = window.location.href || '';
+                const isPickerPage = url.includes('switch_account=picker') || url.includes('switcher_type=');
+
+                const clickish = (el) => {
+                    if (!el) return false;
+                    try { el.scrollIntoView({ block: 'center' }); } catch (_) {}
+                    try { el.click(); return true; } catch (_) {}
+                    try {
+                        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                        return true;
+                    } catch (_) {}
+                    return false;
+                };
+
+                // Newer picker page: "Which account do you want to use?"
+                if (isPickerPage) {
+                    const pickerAction = document.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]')
+                        || document.querySelector('form.cvf-widget-form-account-switcher button[type="submit"]')
+                        || document.querySelector('form.cvf-widget-form-account-switcher input[type="submit"]')
+                        || document.querySelector('[data-test-id="customerName"]');
+                    if (clickish(pickerAction)) return true;
+                }
+
+                const forms = Array.from(document.querySelectorAll('.cvf-widget-form-account-switcher'));
+                if (!forms.length) return false;
+
+                const targetForm = forms.find(f => {
+                    const t = (f.querySelector('[data-test-id="accountType"]')?.textContent || '').toLowerCase();
+                    return t.includes('personal account');
+                }) || forms[0];
+
+                if (!targetForm) return false;
+
+                const customer = targetForm.querySelector('[data-test-id="customerName"]');
+                const anchor = targetForm.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]');
+
+                // customerName can be a non-actionable text node; prefer actionable controls.
+                if (clickish(anchor)) return true;
+                if (clickish(customer)) {
+                    const actionable = targetForm.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]')
+                        || targetForm.querySelector('button[type="submit"], input[type="submit"], button, [role="button"]');
+                    if (clickish(actionable)) return true;
+                }
+                try {
+                    if (typeof targetForm.submit === 'function') {
+                        targetForm.submit();
+                        return true;
+                    }
+                } catch (_) {}
+                return false;
+                }),
+                new Promise(resolve => setTimeout(() => resolve(false), 2500))
+            ]);
+
+            if (handled) {
+                try {
+                    await Promise.race([
+                        page.waitForNavigation({ timeout: 5000 }),
+                        new Promise(resolve => setTimeout(resolve, 1200))
+                    ]);
+                } catch (_) {}
+                return true;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 400));
+        }
+    } catch (_) {}
+    return false;
 }
 
 // Function to detect account status
@@ -240,7 +361,7 @@ async function login(page, { email, pass, code, proxy }) {
             console.app(`Attempting to navigate to login page (${retries} attempts left)...`);
             await page.goto(
                 'https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https://www.amazon.com/?ref_=nav_signin&openid.identity=http://specs.openid.net/auth/2.0/identifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select&openid.ns=http://specs.openid.net/auth/2.0',
-                { waitUntil: 'networkidle2', timeout: 60000 }
+                { waitUntil: 'domcontentloaded', timeout: 10000 }
             );
             
             // Wait for page to load completely
@@ -277,9 +398,19 @@ async function login(page, { email, pass, code, proxy }) {
     }
 
     // Handle CAPTCHA if present
-    if (global.data.parentAcc.geminiKey && global.data.parentAcc.geminiKey != "") {
-        await handleCapcha(page, timeout);
-        await waitForPageLoad(page);
+    if (await isCaptchaPage(page)) {
+        if (global.data.parentAcc.geminiKey && global.data.parentAcc.geminiKey != "") {
+            await handleCapcha(page, timeout);
+            await waitForPageLoad(page);
+        } else {
+            console.log("⚠️ CAPTCHA detected but no Gemini key. Please solve CAPTCHA in browser window.");
+            console.app("⚠️ CAPTCHA detected. Solve it manually in browser (max 120s)...");
+            const solved = await waitForManualCaptchaSolve(page, 120000);
+            if (!solved) {
+                throw new Error("CAPTCHA_NOT_SOLVED_MANUALLY");
+            }
+            await waitForPageLoad(page);
+        }
     }
     
     try {
@@ -313,7 +444,55 @@ async function login(page, { email, pass, code, proxy }) {
     {
         const targetPage = page;
         try {
-            await targetPage.locator('#ap_email').fill(email);
+            let emailSelector = await ensureEmailInputVisible(targetPage);
+
+            if (!emailSelector) {
+                const currentUrl = targetPage.url();
+                console.log(`⚠️ Email input not visible on URL: ${currentUrl}. Retrying signin page...`);
+                console.app(`⚠️ Email input missing, reloading signin page...`);
+
+                await targetPage.goto(
+                    'https://www.amazon.com/ap/signin',
+                    { waitUntil: 'domcontentloaded', timeout: 45000 }
+                );
+                await waitForPageLoad(targetPage, 10000);
+
+                if (await isCaptchaPage(targetPage)) {
+                    if (global.data.parentAcc.geminiKey && global.data.parentAcc.geminiKey != "") {
+                        await handleCapcha(targetPage, timeout);
+                    } else {
+                        console.app("⚠️ CAPTCHA detected. Solve it manually in browser (max 120s)...");
+                        const solved = await waitForManualCaptchaSolve(targetPage, 120000);
+                        if (!solved) throw new Error("CAPTCHA_NOT_SOLVED_MANUALLY");
+                    }
+                }
+
+                emailSelector = await ensureEmailInputVisible(targetPage);
+            }
+
+            if (!emailSelector) {
+                const finalUrl = targetPage.url();
+                throw new Error(`EMAIL_FIELD_NOT_FOUND|URL=${finalUrl}`);
+            }
+
+            let filled = false;
+            try {
+                await targetPage.click(emailSelector, { clickCount: 3 });
+                await targetPage.keyboard.press('Backspace');
+                await targetPage.keyboard.type(email, { delay: 20 });
+                filled = true;
+            } catch (_) {}
+
+            if (!filled) {
+                await targetPage.evaluate(({ selector, value }) => {
+                    const el = document.querySelector(selector);
+                    if (!el) throw new Error('EMAIL_ELEMENT_NOT_FOUND');
+                    el.focus();
+                    el.value = value;
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }, { selector: emailSelector, value: email });
+            }
             await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
             console.log("Error filling email:", error.message);
@@ -326,8 +505,15 @@ async function login(page, { email, pass, code, proxy }) {
     {
         const targetPage = page;
         try {
-            await targetPage.locator('#continue').click();
-            await targetPage.waitForNavigation({ timeout: 60000 });
+            await puppeteer.Locator.race([
+                targetPage.locator('#continue'),
+                targetPage.locator('input#continue'),
+                targetPage.locator('button#continue'),
+                targetPage.locator('input[type="submit"][name="continue"]')
+            ])
+                .setTimeout(8000)
+                .click();
+            await targetPage.waitForNavigation({ timeout: 8000 });
             await waitForPageLoad(page);
         } catch (error) {
             console.log("Error after clicking continue:", error.message);
@@ -340,7 +526,25 @@ async function login(page, { email, pass, code, proxy }) {
     {
         const targetPage = page;
         try {
-            await targetPage.locator('#ap_password').fill(pass);
+            let passwordSelector = null;
+            const passwordSelectors = ['#ap_password', 'input[name="password"]', 'input[type="password"]'];
+            for (const selector of passwordSelectors) {
+                try {
+                    await targetPage.waitForSelector(selector, { timeout: 4000 });
+                    passwordSelector = selector;
+                    break;
+                } catch (_) {}
+            }
+            if (!passwordSelector) {
+                throw new Error('PASSWORD_FIELD_NOT_FOUND');
+            }
+            try {
+                await targetPage.locator(passwordSelector).fill(pass);
+            } catch (_) {
+                await targetPage.click(passwordSelector, { clickCount: 3 });
+                await targetPage.keyboard.press('Backspace');
+                await targetPage.keyboard.type(pass, { delay: 20 });
+            }
             await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
             console.log("Error filling password:", error.message);
@@ -372,7 +576,7 @@ async function login(page, { email, pass, code, proxy }) {
                     // Or wait for URL change
                     new Promise(async (resolve) => {
                         for (let i = 0; i < 30; i++) {
-                            await new Promise(r => setTimeout(r, 500));
+                            await new Promise(r => setTimeout(r, 200));
                             try {
                                 const currentUrl = await targetPage.url();
                                 if (currentUrl !== beforeClickUrl) {
@@ -485,7 +689,6 @@ async function login(page, { email, pass, code, proxy }) {
     // Handle MFA if required
     if (page.url().includes('/ap/mfa')) {
         console.log("MFA page detected. Handling MFA...");
-        console.app("MFA page detected. Handling MFA...");
 
         let mfaRetries = 3;
         while (mfaRetries > 0) {
@@ -493,7 +696,6 @@ async function login(page, { email, pass, code, proxy }) {
                 let twofactor = require("node-2fa");
                 let mfaToken = twofactor.generateToken(code).token;
                 console.log("Generated MFA token:", mfaToken);
-                console.app("Generated MFA token:" + mfaToken);
 
                 {
                     const targetPage = page;
@@ -512,7 +714,6 @@ async function login(page, { email, pass, code, proxy }) {
                     if (dontRequireExists) {
                         await targetPage.locator("label[for='auth-mfa-remember-device']").click();
                         console.log("Clicked 'Don't require' option");
-                        console.app("Clicked 'Don't require' option");
                         await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 } catch (dontRequireError) {
@@ -522,18 +723,16 @@ async function login(page, { email, pass, code, proxy }) {
                 {
                     const targetPage = page;
                     await targetPage.locator('#auth-signin-button').click();
-                    await targetPage.waitForNavigation({ timeout: 60000 });
-                    await waitForPageLoad(page);
+                    // User-requested fast path after MFA: no heavy page-load wait here.
+                    await new Promise(resolve => setTimeout(resolve, 3500));
                 }
 
                 console.log("MFA handled successfully");
-                console.app("MFA handled successfully");
                 break; // Success
                 
             } catch (mfaError) {
                 mfaRetries--;
                 console.log(`Error handling MFA (${mfaRetries} retries left):`, mfaError.message);
-                console.app("Error handling MFA:" + mfaError.message);
                 
                 // Handle timeout in MFA
                 if (mfaError.message.includes('timeout') && mfaRetries > 0) {
@@ -551,22 +750,11 @@ async function login(page, { email, pass, code, proxy }) {
         }
     }
 
-    // Wait for page to stabilize
-    {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const targetPage = page;
-        await targetPage.evaluate(() => {
-            return new Promise((resolve) => {
-                if (document.readyState === 'complete') {
-                    resolve();
-                } else {
-                    window.addEventListener('load', resolve);
-                }
-            });
-        });
-        
-        await waitForPageLoad(page);
-    }
+    // Fast continue after MFA (requested): keep only a short fixed delay.
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Immediately resolve account switcher to avoid hanging on /ax/claim page.
+    await resolveAccountSwitcherFast(page);
 
     // Handle account fixup page (phone verification skip)
     if (page.url().includes('/ap/accountfixup?clientContext=')) {
@@ -595,34 +783,112 @@ async function login(page, { email, pass, code, proxy }) {
         await waitForPageLoad(page);
     }
 
-    // Handle business account selector
+    // Handle account switcher for normal login: only probe when switcher-like URL/content is present
     try {
         const targetPage = page;
-        const promises = [];
-        const startWaitingForEvents = () => {
-            promises.push(targetPage.waitForNavigation());
+        const shouldCheckSwitcher = await targetPage.evaluate(() => {
+            const url = window.location.href || '';
+            if (url.includes('/ax/claim') || url.includes('/ax/signin') || url.includes('switchaccount') || url.includes('switch_account=picker') || url.includes('switcher_type=')) return true;
+            return !!document.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]');
+        });
+
+        if (!shouldCheckSwitcher) {
+            console.log("No account switcher context detected, skipping switcher handling.");
+            throw new Error("__SKIP_SWITCHER__");
         }
-        await puppeteer.Locator.race([
-            targetPage.locator('::-p-text(Business account)'),
-            targetPage.locator("html > body > #a-page > div.a-section > #authportal-center-section > #authportal-main-section > div:nth-of-type(2) > div > #ap-account-switcher-container > div.a-box > div > div > div:nth-of-type(2) > div > [data-test-id='switchableAccounts'] [data-test-id='accountType']"),
-            targetPage.locator('::-p-xpath(//*[@data-test-id=\\"accountType\\"])'),
-            targetPage.locator(":scope >>> html > body > #a-page > div.a-section > #authportal-center-section > #authportal-main-section > div:nth-of-type(2) > div > #ap-account-switcher-container > div.a-box > div > div > div:nth-of-type(2) > div > [data-test-id='switchableAccounts'] [data-test-id='accountType']")
-        ])
-            .setTimeout(timeout)
-            .on('action', () => startWaitingForEvents())
-            .click({
-              offset: {
-                x: 76.03750610351562,
-                y: 10,
-              },
+
+        let clickedSwitcher = false;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            clickedSwitcher = await targetPage.evaluate(() => {
+                const url = window.location.href || '';
+                const isPickerPage = url.includes('switch_account=picker') || url.includes('switcher_type=');
+
+                const smartClick = (el) => {
+                    if (!el) return false;
+                    try { el.scrollIntoView({ block: 'center' }); } catch (_) {}
+                    try { el.click(); return true; } catch (_) {}
+                    try {
+                        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                        return true;
+                    } catch (_) {}
+                    return false;
+                };
+
+                // Newer picker page: click actionable switcher control first.
+                if (isPickerPage) {
+                    const pickerAction = document.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]')
+                        || document.querySelector('form.cvf-widget-form-account-switcher button[type="submit"]')
+                        || document.querySelector('form.cvf-widget-form-account-switcher input[type="submit"]')
+                        || document.querySelector('[data-test-id="customerName"]');
+                    if (smartClick(pickerAction)) return true;
+                }
+
+                const forms = Array.from(document.querySelectorAll('.cvf-widget-form-account-switcher'));
+                if (!forms.length) return false;
+
+                const isPersonalForm = (form) => {
+                    const accountType = form.querySelector('[data-test-id="accountType"]');
+                    return (accountType?.textContent || '').toLowerCase().includes('personal account');
+                };
+
+                const targetForm = forms.find(isPersonalForm) || forms[0];
+                if (!targetForm) return false;
+
+                const customerNameNode = targetForm.querySelector('[data-test-id="customerName"]');
+                const anchorNode = targetForm.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]');
+
+                // customerName can be just display text. Prefer actionable switcher controls.
+                if (smartClick(anchorNode)) return true;
+                if (smartClick(customerNameNode)) {
+                    const actionable = targetForm.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]')
+                        || targetForm.querySelector('button[type="submit"], input[type="submit"], button, [role="button"]');
+                    if (smartClick(actionable)) return true;
+                }
+
+                // Fallback: submit parent form explicitly.
+                try {
+                    if (typeof targetForm.submit === 'function') {
+                        targetForm.submit();
+                        return true;
+                    }
+                } catch (_) {}
+                return false;
             });
-        await Promise.all(promises);
-        
-        await waitForPageLoad(page);
-        
+            if (clickedSwitcher) break;
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+
+        if (clickedSwitcher) {
+            try {
+                await Promise.race([
+                    targetPage.waitForNavigation({ timeout: 5000 }),
+                    new Promise(resolve => setTimeout(resolve, 1200))
+                ]);
+            } catch (_) {}
+            await waitForPageLoad(page);
+            console.log("Clicked account switcher anchor (Personal preferred)");
+        } else {
+            console.log("No switch-account anchor found after MFA, continuing...");
+        }
     } catch (error) {
-        console.log("Business account selector not found or not needed, continuing with regular account...");
-        console.app("Business account selector not found or not needed, continuing with regular account...");
+        if (error.message !== "__SKIP_SWITCHER__") {
+            console.log("Account switcher handling failed, continuing...");
+        }
+    }
+
+    // Safety: if still stuck on account switch page, force go home.
+    if (
+        page.url().includes('/ax/claim') ||
+        page.url().includes('switchaccount') ||
+        page.url().includes('switch_account=picker') ||
+        page.url().includes('switcher_type=')
+    ) {
+        try {
+            await page.goto('https://www.amazon.com/?ref_=nav_signin', {
+                waitUntil: 'domcontentloaded',
+                timeout: 7000
+            });
+        } catch (_) {}
     }
     
     // Final checks and account lock detection
@@ -644,7 +910,6 @@ async function login(page, { email, pass, code, proxy }) {
         
         if (finalStatus === 'ACCOUNT_LOCKED') {
             console.log(`❌ Account ${email} is locked (final check)`);
-            console.app(`❌ Account ${email} is locked (final check)`);
             
             const removeResult = removeLockedAccount(email);
             if (removeResult) {
@@ -669,7 +934,6 @@ async function login(page, { email, pass, code, proxy }) {
                 
             } catch (error) {
                 console.log(`❌ Account ${email} is locked (continue button check)`);
-                console.app(`❌ Account ${email} is locked (continue button check)`);
                 
                 const removeResult = removeLockedAccount(email);
                 if (removeResult) {
@@ -680,30 +944,37 @@ async function login(page, { email, pass, code, proxy }) {
             }
         }
         
-        await waitForPageLoad(page);
+        // keep final wait minimal to avoid post-MFA lag
     }
 
-    // Wait for final navigation to complete
+    // Wait briefly for final navigation to settle
     await new Promise((resolve, reject) => {
         let interval = setInterval(() => {
-            if (page.url().includes('amazon.com/?') || page.url().length <= 25 || page.url().includes('account-status.amazon.com')) {
+            const u = page.url();
+            if (
+                u.includes('amazon.com/?') ||
+                u.includes('amazon.com/') ||
+                u.includes('/a/addresses') ||
+                u.includes('/cpe/yourpayments') ||
+                u.includes('account-status.amazon.com') ||
+                u.length <= 25
+            ) {
                 clearInterval(interval);
                 resolve();
                 return;
             }
         }, 1000);
         
-        // Timeout after 30 seconds
+        // Timeout quickly to avoid long hangs on intermediate pages
         setTimeout(() => {
             clearInterval(interval);
             resolve();
-        }, 30000);
+        }, 8000);
     });
     
-    await waitForPageLoad(page);
+    // final page load wait removed to reduce latency
     
     console.log(`✅ Login successful for ${email}`);
-    console.app(`✅ Login successful for ${email}`);
 }
 
 // CAPTCHA handling function
@@ -736,11 +1007,10 @@ async function handleCapcha(page, timeout) {
             });
 
             console.log("Captcha image source:", captchaSrc);
-            const resCapcha = await require(path.join(__dirname, "capha.js"))(captchaSrc);
+            const resCapcha = await require(path.join(__dirname, "capcha.js"))(captchaSrc);
 
             if (!resCapcha || !resCapcha.success) {
                 console.log("Captcha solution failed, retrying...");
-                console.app("Captcha solution failed, retrying...");
                 continue;
             }
 
@@ -781,7 +1051,6 @@ async function handleCapcha(page, timeout) {
                     page.waitForNavigation({ timeout: 60000 })
                         .catch(err => {
                             console.log("Navigation timeout after CAPTCHA submission, continuing anyway");
-                            console.app("Navigation timeout after CAPTCHA submission, continuing anyway");
                             return null;
                         })
                 );
@@ -811,10 +1080,8 @@ async function handleCapcha(page, timeout) {
                 captchaForm = await page.$('form[action="/errors/validateCaptcha"] img');
                 if (captchaForm) {
                     console.log("Captcha still present after submission, retrying...");
-                    console.app("Captcha still present after submission, retrying...");
                 } else {
                     console.log("Captcha passed successfully!");
-                    console.app("Captcha passed successfully!");
                     captchaResolved = true;
                 }
             } catch (e) {

@@ -84,6 +84,13 @@ async function checkCard() {
     
     console.app(`🚀 Starting card check with ${totalCards} cards`);
     
+    if (!listProxy.length) {
+        console.app("No proxy found, running with direct connection");
+        console.log("No proxy found, running with direct connection");
+        initThread(null, 0);
+        return;
+    }
+
     for (let i in listProxy) {
         let [host, port, user, pass] = listProxy[i].split(':');
         let proxy = {
@@ -123,14 +130,18 @@ async function initThread(proxy, index) {
     }
 
     // ✅ TEST PROXY CONNECTION FIRST
-    console.log(`🌐 Testing proxy: ${proxy.user}@${proxy.host}:${proxy.port}`);
+    if (proxy) {
+        console.log(`🌐 Testing proxy: ${proxy.user}@${proxy.host}:${proxy.port}`);
+    } else {
+        console.log(`🌐 Running without proxy for: ${email}`);
+    }
 
-    const browser = await puppeteer.launch({
+    const launchOptions = {
         headless: !global.data.settings.showBrowser && global.data.parentAcc.geminiKey != "",
         timeout: 60000, // ✅ INCREASED TIMEOUT
         args: [
             // ✅ IMPROVED PROXY CONFIGURATION
-            `--proxy-server=${proxy.host}:${proxy.port}`,
+            ...(proxy ? [`--proxy-server=${proxy.host}:${proxy.port}`] : []),
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-web-security',
@@ -164,7 +175,23 @@ async function initThread(proxy, index) {
             '--allow-running-insecure-content'
         ],
         ignoreDefaultArgs: ['--enable-automation']
-    });
+    };
+
+    let browser;
+    try {
+        browser = await puppeteer.launch(launchOptions);
+    } catch (launchError) {
+        if (String(launchError.message || '').includes('Could not find Chrome')) {
+            const installedChrome = puppeteer.executablePath();
+            console.log(`⚠️ Default launch failed, retrying with executablePath: ${installedChrome}`);
+            browser = await puppeteer.launch({
+                ...launchOptions,
+                executablePath: installedChrome
+            });
+        } else {
+            throw launchError;
+        }
+    }
 
     const page = await browser.newPage();
     
@@ -174,10 +201,12 @@ async function initThread(proxy, index) {
     });
 
     // ✅ SET PROXY AUTHENTICATION BEFORE ANY REQUESTS
-    await page.authenticate({ 
-        username: proxy.user, 
-        password: proxy.pass 
-    });
+    if (proxy && proxy.user && proxy.pass) {
+        await page.authenticate({
+            username: proxy.user,
+            password: proxy.pass
+        });
+    }
 
     // ✅ SET LONGER TIMEOUTS
     await page.setDefaultNavigationTimeout(90000);
@@ -187,44 +216,48 @@ async function initThread(proxy, index) {
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
     // ✅ TEST PROXY FIRST
-    try {
-        console.log(`🔍 Testing proxy connectivity...`);
-        await page.goto('https://httpbin.org/ip', { 
-            waitUntil: 'networkidle2',
-            timeout: 30000 
-        });
-        
-        const proxyIP = await page.evaluate(() => {
-            try {
-                return JSON.parse(document.body.innerText).origin;
-            } catch {
-                return 'Unknown';
-            }
-        });
-        
-        console.log(`✅ Proxy working: ${proxyIP}`);
-        console.app(`✅ Proxy IP: ${proxyIP}`);
-        
-    } catch (proxyTestError) {
-        console.log(`❌ Proxy test failed: ${proxyTestError.message}`);
-        console.app(`❌ Proxy failed: ${email}`);
-        await browser.close();
-        
-        // ✅ TRY NEXT PROXY OR RETRY
-        setTimeout(() => initThread(proxy, index), 5000);
-        return;
+    if (proxy) {
+        try {
+            console.log(`🔍 Testing proxy connectivity...`);
+            await page.goto('https://httpbin.org/ip', {
+                waitUntil: 'networkidle2',
+                timeout: 30000
+            });
+
+            const proxyIP = await page.evaluate(() => {
+                try {
+                    return JSON.parse(document.body.innerText).origin;
+                } catch {
+                    return 'Unknown';
+                }
+            });
+
+            console.log(`✅ Proxy working: ${proxyIP}`);
+            console.app(`✅ Proxy IP: ${proxyIP}`);
+
+        } catch (proxyTestError) {
+            console.log(`❌ Proxy test failed: ${proxyTestError.message}`);
+            console.app(`❌ Proxy failed: ${email}`);
+            await browser.close();
+
+            // ✅ TRY NEXT PROXY OR RETRY
+            setTimeout(() => initThread(proxy, index), 5000);
+            return;
+        }
+    } else {
+        console.app(`✅ Direct connection: ${email}`);
     }
 
     let form = {
         email,
         pass,
         code: secret,
-        proxy: {
+        proxy: proxy ? {
             host: proxy.host,
             port: proxy.port,
             username: proxy.user,
             password: proxy.pass
-        }
+        } : null
     };
 
     try {
@@ -511,12 +544,21 @@ async function thread(page, browser, email, index, proxy) {
         // console.log(`Card: ${card} for ${email} (${data.childCount[email] || 0}/80)`); // ✅ REMOVED - TOO VERBOSE
         // console.app(`Card: ${card} for ${email} (${data.childCount[email] || 0}/80)`); // ✅ REMOVED
         
+        const getAddCardErrorCode = (result) => {
+            if (!result) return 'UNKNOWN';
+            if (typeof result.error === 'string') return result.error;
+            if (result.error && typeof result.error.message === 'string') return result.error.message;
+            return 'UNKNOWN';
+        };
+
         let res = await require(path.join(__dirname, "..", "api", "addCard.js"))(page, form);
         let attempts = 1;
         const maxAttempts = 5;
+        let lastAddCardError = getAddCardErrorCode(res);
         while (!res.success && attempts < maxAttempts) {
             // console.log(`Retry attempt ${attempts}/${maxAttempts} for card: ${card}. Error: ${res.error || 'Unknown'}`); // ✅ REDUCED VERBOSITY
             // console.app(`Retry attempt ${attempts}/${maxAttempts} for card: ${card}. Error: ${res.error || 'Unknown'}`); // ✅ REMOVED
+            lastAddCardError = getAddCardErrorCode(res);
             attempts++;
             
             await new Promise(resolve => setTimeout(resolve, 5000));
@@ -545,15 +587,17 @@ async function thread(page, browser, email, index, proxy) {
                 if (error.name === 'TimeoutError') {
                     // console.log('Page reload timed out, continuing anyway...'); // ✅ REMOVED
                 } else {
-                    throw error;
+                    const reloadError = error && error.message ? error.message : String(error);
+                    console.log(`WARN Reload error while retrying add card: ${reloadError}`);
                 }
             }
             
             res = await require(path.join(__dirname, "..", "api", "addCard.js"))(page, form);
+            lastAddCardError = getAddCardErrorCode(res);
         }
         
         if (!res.success) {
-            console.log(`❌ Card add failed: ***${card.slice(-4)} after ${maxAttempts} attempts`);
+            console.log(`Card add failed: ***${card.slice(-4)} after ${maxAttempts} attempts. Last error: ${lastAddCardError}`);
             console.app(`❌ Card add failed: ***${card.slice(-4)}`);
             continue;
         }
@@ -1154,6 +1198,13 @@ async function checkCard() {
     windowManager.reset();
     
     console.app(`🚀 Starting card check with ${totalCards} cards`);
+
+    if (!listProxy.length) {
+        console.app("⚠️ Warning: No proxies found in proxies.txt, running without proxy");
+        console.log("⚠️ Warning: No proxies found in proxies.txt, running without proxy");
+        initThread(null, 0);
+        return;
+    }
     
     for (let i in listProxy) {
         let [host, port, user, pass] = listProxy[i].split(':');

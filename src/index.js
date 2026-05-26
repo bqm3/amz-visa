@@ -1,11 +1,14 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const puppeteer = require('puppeteer');
-const windowManager = require('./util/windowManager'); // ✅ ADD IMPORT
+const windowManager = require('./util/windowManager'); // âœ… ADD IMPORT
 
 const today = new Date();
-const formattedDate = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+const localYear = today.getFullYear();
+const localMonth = String(today.getMonth() + 1).padStart(2, '0');
+const localDay = String(today.getDate()).padStart(2, '0');
+const formattedDate = `${localYear}-${localMonth}-${localDay}`; // Local date: YYYY-MM-DD
 const dirSave = path.join(__dirname, "..", "output", formattedDate);
 global.data.dirSave = dirSave;
 
@@ -148,7 +151,7 @@ function createMainWindow(centralWidget) {
     cardLiveContainer.setLayout(cardLiveLayout);
 
     const cardLiveTitle = new QLabel();
-    cardLiveTitle.setText("✅ Live");
+    cardLiveTitle.setText("âœ… Live");
     cardLiveTitle.setProperty("class", "subsection-title");
     cardLiveTitle.setStyleSheet("color: #a6e3a1; font-weight: bold;");
     
@@ -168,7 +171,7 @@ function createMainWindow(centralWidget) {
     cardDieContainer.setLayout(cardDieLayout);
 
     const cardDieTitle = new QLabel();
-    cardDieTitle.setText("❌ Die");
+    cardDieTitle.setText("âŒ Die");
     cardDieTitle.setProperty("class", "subsection-title");
     cardDieTitle.setStyleSheet("color: #f38ba8; font-weight: bold;");
     
@@ -320,6 +323,10 @@ function createMainWindow(centralWidget) {
     scanButton.setText("Scan Card");
     scanButton.setStyleSheet("background-color: #a6e3a1;");
 
+    const normalLoginButton = new QPushButton();
+    normalLoginButton.setText("Normal Login");
+    normalLoginButton.setStyleSheet("background-color: #f9e2af;");
+
     const businessLoginButton = new QPushButton();
     businessLoginButton.setText("Business Login");
     businessLoginButton.setStyleSheet("background-color: #f9e2af;");
@@ -331,6 +338,7 @@ function createMainWindow(centralWidget) {
     actionLayout.addWidget(checkAfterInput);
     actionLayout.addWidget(scanButton);
     actionLayout.addWidget(businessLoginButton);
+    actionLayout.addWidget(normalLoginButton);
     actionLayout.addStretch(1);
     actionLayout.addWidget(fileCardButton);
 
@@ -534,11 +542,11 @@ function createMainWindow(centralWidget) {
         }
         global.data.settings.checkAfter = Math.max(value, 1) * 1000;
         
-        // ✅ RESET WINDOW POSITIONS BEFORE STARTING
+        // âœ… RESET WINDOW POSITIONS BEFORE STARTING
         windowManager.reset();
         
-        appendToTerminal(terminal.toPlainText() + "\n" + `🪟 Window grid initialized for card scanning...`);
-        appendToTerminal(terminal.toPlainText() + "\n" + `📊 Scanning ${global.data.cardTotal || 0} cards with ${Math.max(value, 1)}s delay...`);
+        appendToTerminal(terminal.toPlainText() + "\n" + `ðŸªŸ Window grid initialized for card scanning...`);
+        appendToTerminal(terminal.toPlainText() + "\n" + `ðŸ“Š Scanning ${global.data.cardTotal || 0} cards with ${Math.max(value, 1)}s delay...`);
         
         try {
             await require(path.join(__dirname, "util", "checkCard.js"))();
@@ -548,28 +556,53 @@ function createMainWindow(centralWidget) {
         }
     });
 
-    businessLoginButton.addEventListener('clicked', async () => {
-        // ✅ RESET WINDOW POSITIONS BEFORE STARTING
+    normalLoginButton.addEventListener('clicked', async () => {
+        // âœ… RESET WINDOW POSITIONS BEFORE STARTING
         windowManager.reset();
         
-        appendToTerminal(terminal.toPlainText() + "\n" + "🪟 Window grid initialized for business login...");
-        appendToTerminal(terminal.toPlainText() + "\n" + "🚀 Starting Business Login Process...");
+        appendToTerminal(terminal.toPlainText() + "\n" + "ðŸªŸ Window grid initialized for normal login...");
+        appendToTerminal(terminal.toPlainText() + "\n" + "ðŸš€ Starting Normal Login Process...");
         
         try {
-            // ⭐ LOAD AND SHOW STATISTICS BEFORE PROCESSING
+            // â­ LOAD AND SHOW STATISTICS BEFORE PROCESSING
             const accPath = path.join(__dirname, "data", 'acc.txt');
             
             if (!fs.existsSync(accPath)) {
-                appendToTerminal(terminal.toPlainText() + "\n" + "❌ Account file not found: " + accPath);
+                appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Account file not found: " + accPath);
+                return;
+            }
+
+            await require(path.join(__dirname, "util", "updateNormal.js"))();
+            appendToTerminal(terminal.toPlainText() + "\n" + "âœ… Normal login process completed!");
+            
+        } catch (error) {
+            console.error("Error during normal login:", error);
+            appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Error during normal login: " + error.message);
+        }
+    });
+
+    businessLoginButton.addEventListener('clicked', async () => {
+        // âœ… RESET WINDOW POSITIONS BEFORE STARTING
+        windowManager.reset();
+        
+        appendToTerminal(terminal.toPlainText() + "\n" + "ðŸªŸ Window grid initialized for business login...");
+        appendToTerminal(terminal.toPlainText() + "\n" + "ðŸš€ Starting Business Login Process...");
+        
+        try {
+            // â­ LOAD AND SHOW STATISTICS BEFORE PROCESSING
+            const accPath = path.join(__dirname, "data", 'acc.txt');
+            
+            if (!fs.existsSync(accPath)) {
+                appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Account file not found: " + accPath);
                 return;
             }
 
             await require(path.join(__dirname, "util", "updateBusiness.js"))();
-            appendToTerminal(terminal.toPlainText() + "\n" + "✅ Business login process completed!");
+            appendToTerminal(terminal.toPlainText() + "\n" + "âœ… Business login process completed!");
             
         } catch (error) {
             console.error("Error during business login:", error);
-            appendToTerminal(terminal.toPlainText() + "\n" + "❌ Error during business login: " + error.message);
+            appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Error during business login: " + error.message);
         }
     });
 
