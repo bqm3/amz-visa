@@ -151,7 +151,7 @@ function createMainWindow(centralWidget) {
     cardLiveContainer.setLayout(cardLiveLayout);
 
     const cardLiveTitle = new QLabel();
-    cardLiveTitle.setText("âœ… Live");
+    cardLiveTitle.setText("Card Live");
     cardLiveTitle.setProperty("class", "subsection-title");
     cardLiveTitle.setStyleSheet("color: #a6e3a1; font-weight: bold;");
     
@@ -171,7 +171,7 @@ function createMainWindow(centralWidget) {
     cardDieContainer.setLayout(cardDieLayout);
 
     const cardDieTitle = new QLabel();
-    cardDieTitle.setText("âŒ Die");
+    cardDieTitle.setText("Card Die");
     cardDieTitle.setProperty("class", "subsection-title");
     cardDieTitle.setStyleSheet("color: #f38ba8; font-weight: bold;");
     

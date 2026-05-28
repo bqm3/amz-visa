@@ -18,6 +18,219 @@ const proxies = fs.readFileSync(path.join(__dirname, '..', 'data', 'proxies.txt'
 let currentProxyIndex = 0;
 const maxConcurrentWindows = Math.max(proxies.length, 1);
 
+function normalizeCardLine(cardLine) {
+    const [number, monthRaw, yearRaw, cvc, ...nameParts] = String(cardLine || '').split('|');
+    if (!number || !monthRaw || !yearRaw || !cvc) return null;
+
+    const month = monthRaw.length === 1 ? `0${monthRaw}` : monthRaw;
+    const year = yearRaw.length === 2 ? `20${yearRaw}` : yearRaw;
+    const name = nameParts.join('|').trim() || 'Saint David';
+
+    return {
+        number: number.trim(),
+        month: month.trim(),
+        year: year.trim(),
+        cvc: cvc.trim(),
+        name,
+        raw: cardLine
+    };
+}
+
+function appendCardResult(kind, card, email, reason = '') {
+    const status = kind === 'live' ? 'LIVE' : 'DIE';
+    const base = `${status}|${card.number}|${card.month}|${card.year}|${card.cvc}`;
+    const namePart = card.name ? `|${card.name}` : '';
+    const accountPart = email ? `|Account:${email}` : '';
+    const reasonPart = reason ? `|Reason:${reason}` : '';
+    const line = `${base}${namePart}${accountPart}${reasonPart}`;
+
+    if (console.card && typeof console.card[kind] === 'function') {
+        console.card[kind](line);
+        return;
+    }
+
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const dirSave = global.data.dirSave || path.join(__dirname, '..', '..', 'output', formattedDate);
+    fs.mkdirSync(dirSave, { recursive: true });
+    fs.appendFileSync(path.join(dirSave, `${kind}.txt`), line + '\n', 'utf8');
+}
+
+async function returnToWallet(page) {
+    try {
+        await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
+            waitUntil: 'domcontentloaded',
+            timeout: 45000
+        });
+        await new Promise(resolve => setTimeout(resolve, 2500));
+    } catch (error) {
+        console.log(`WARN Could not return to wallet: ${error.message}`);
+    }
+}
+
+async function removeLiveCardFromWallet(page, card, email) {
+    const last4 = card.number.slice(-4);
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            await returnToWallet(page);
+
+            const selected = await page.evaluate((targetLast4) => {
+                const isVisible = (el) => {
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+                };
+
+                const candidates = Array.from(document.querySelectorAll(
+                    '[data-testid="pmts-credit-card-instrument"], [class*="payment-method"], [class*="instrument"], .pmts-portal-component, .a-row'
+                )).filter(isVisible);
+
+                const cardNode = candidates.find((el) => {
+                    const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ');
+                    return text.includes(targetLast4) && !text.toLowerCase().includes('add a payment method');
+                });
+
+                if (!cardNode) return false;
+                const clickable = cardNode.closest('[data-testid="pmts-credit-card-instrument"], [class*="payment-method"], [class*="instrument"], .a-row') || cardNode;
+                clickable.scrollIntoView({ block: 'center' });
+                clickable.click();
+                return true;
+            }, last4);
+
+            if (!selected) {
+                console.log(`WARN Could not find live card ***${last4} to remove for ${email}, attempt ${attempt}/3`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                continue;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2500));
+
+            const editClicked = await page.evaluate(() => {
+                const isVisible = (el) => {
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+                };
+
+                const links = Array.from(document.querySelectorAll('a, button, input[type="button"], input[type="submit"]')).filter(isVisible);
+                const edit = links.find((el) => {
+                    const meta = [
+                        el.innerText || '',
+                        el.textContent || '',
+                        el.value || '',
+                        el.getAttribute('aria-label') || '',
+                        el.href || '',
+                        el.className || ''
+                    ].join(' ').toLowerCase();
+                    return meta.includes('edit') || meta.includes('change');
+                });
+
+                if (!edit) return false;
+                edit.scrollIntoView({ block: 'center' });
+                edit.click();
+                return true;
+            });
+
+            if (!editClicked) {
+                console.log(`WARN Edit button not found for live card ***${last4}, attempt ${attempt}/3`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                continue;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2500));
+
+            const removeClicked = await page.evaluate(() => {
+                const isVisible = (el) => {
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+                };
+
+                const scope = document.querySelector('.a-popover[aria-hidden="false"], .a-popover-modal, [role="dialog"]') || document;
+                const links = Array.from(scope.querySelectorAll('a, button, input[type="button"], input[type="submit"]')).filter(isVisible);
+                const remove = links.find((el) => {
+                    const meta = [
+                        el.innerText || '',
+                        el.textContent || '',
+                        el.value || '',
+                        el.getAttribute('aria-label') || '',
+                        el.href || '',
+                        el.name || '',
+                        el.className || ''
+                    ].join(' ').toLowerCase();
+                    return meta.includes('remove') || meta.includes('delete');
+                });
+
+                if (!remove) return false;
+                remove.scrollIntoView({ block: 'center' });
+                remove.click();
+                return true;
+            });
+
+            if (!removeClicked) {
+                console.log(`WARN Remove button not found in edit dialog for live card ***${last4}, attempt ${attempt}/3`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                continue;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2500));
+
+            const confirmed = await page.evaluate(() => {
+                const isVisible = (el) => {
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+                };
+
+                const buttons = Array.from(document.querySelectorAll(
+                    '.a-popover[aria-hidden="false"] input, .a-popover[aria-hidden="false"] button, .a-popover-modal input, .a-popover-modal button, input, button'
+                )).filter(isVisible);
+
+                const confirm = buttons.find((el) => {
+                    const meta = [
+                        el.value || '',
+                        el.innerText || '',
+                        el.textContent || '',
+                        el.getAttribute('aria-label') || '',
+                        el.name || '',
+                        el.className || ''
+                    ].join(' ').toLowerCase();
+                    return meta.includes('remove without selecting') ||
+                        meta.includes('remove') ||
+                        meta.includes('delete') ||
+                        meta.includes('yes') ||
+                        meta.includes('confirm');
+                });
+
+                if (!confirm) return false;
+                confirm.click();
+                return true;
+            });
+
+            if (!confirmed) {
+                console.log(`WARN Remove confirm not found for live card ***${last4}, attempt ${attempt}/3`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                continue;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 3500));
+            console.log(`Removed live card ***${last4} for ${email}`);
+            console.app(`Removed live card ***${last4} for ${email}`);
+            return { success: true };
+        } catch (error) {
+            console.log(`WARN Remove live card ***${last4} failed attempt ${attempt}/3: ${error.message}`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+    }
+
+    return { success: false, error: 'REMOVE_LIVE_CARD_FAILED' };
+}
+
 async function updateNormal() {
     windowManager.reset();
     console.log('Starting normal login process...');
@@ -230,50 +443,57 @@ async function processAccount(accountLine, index) {
                     console.app(`No cards found in card.txt for ${email}`);
                 } else {
                     const addCard = require(path.join(__dirname, '..', 'api', 'addCard.js'));
-                    const maxCardsPerAccount = 3;
-                    let addedCount = 0;
-
-                    for (const cardLine of cardLines.slice(0, maxCardsPerAccount)) {
-                        const [number, monthRaw, yearRaw, cvc] = cardLine.split('|');
-                        if (!number || !monthRaw || !yearRaw || !cvc) continue;
-
-                        const month = monthRaw.length === 1 ? `0${monthRaw}` : monthRaw;
-                        const year = yearRaw.length === 2 ? `20${yearRaw}` : yearRaw;
-                        const form = { number, month, year, name: 'Saint David', cvc };
-
-                        let res = await addCard(page, form);
-                        let attempts = 1;
-                        while (!res.success && attempts < 3) {
-                            attempts++;
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                            try {
-                                await page.reload({ waitUntil: ['domcontentloaded'], timeout: 5000 });
-                                await new Promise(resolve => setTimeout(resolve, 4000));
-                                const currentUrl = page.url();
-                                if (!currentUrl.includes('yourpayments') || !currentUrl.includes('wallet')) {
-                                    await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
-                                        waitUntil: 'domcontentloaded',
-                                        timeout: 5000
-                                    });
-                                    await new Promise(resolve => setTimeout(resolve, 3000));
-                                }
-                            } catch (_) {}
-                            res = await addCard(page, form);
-                        }
-
-                        if (res.success) {
-                            addedCount++;
-                            console.log(`Added card ***${number.slice(-4)} for ${email}`);
-                            console.app(`Added card ***${number.slice(-4)} for ${email}`);
-                        } else {
-                            const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
-                            console.log(`Failed card ***${number.slice(-4)} for ${email}${reason}`);
-                            console.app(`Failed card ***${number.slice(-4)} for ${email}${reason}`);
-                        }
+                    if (console.card && typeof console.card.setTotal === 'function') {
+                        console.card.setTotal(cardLines.length);
                     }
 
-                    console.log(`Card flow completed for ${email}: ${addedCount} card(s) added`);
-                    console.app(`Card flow completed for ${email}: ${addedCount} card(s) added`);
+                    let liveCount = 0;
+                    let dieCount = 0;
+
+                    for (let cardIndex = 0; cardIndex < cardLines.length; cardIndex++) {
+                        const card = normalizeCardLine(cardLines[cardIndex]);
+                        if (!card) {
+                            console.log(`Skipping invalid card line ${cardIndex + 1}: ${cardLines[cardIndex]}`);
+                            continue;
+                        }
+
+                        const form = {
+                            number: card.number,
+                            month: card.month,
+                            year: card.year,
+                            name: card.name,
+                            cvc: card.cvc
+                        };
+
+                        console.log(`Processing card ${cardIndex + 1}/${cardLines.length} ***${card.number.slice(-4)} for ${email}`);
+                        console.app(`Processing card ${cardIndex + 1}/${cardLines.length} ***${card.number.slice(-4)} for ${email}`);
+
+                        const res = await addCard(page, form);
+
+                        if (res.success) {
+                            liveCount++;
+                            appendCardResult('live', card, email);
+                            console.log(`LIVE card ***${card.number.slice(-4)} for ${email}`);
+                            console.app(`LIVE card ***${card.number.slice(-4)} for ${email}`);
+
+                            const removeResult = await removeLiveCardFromWallet(page, card, email);
+                            if (!removeResult.success) {
+                                console.log(`WARN Live card ***${card.number.slice(-4)} was saved but not removed for ${email}: ${removeResult.error}`);
+                                console.app(`WARN Live card ***${card.number.slice(-4)} was saved but not removed for ${email}`);
+                            }
+                        } else {
+                            const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
+                            dieCount++;
+                            appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
+                            console.log(`DIE card ***${card.number.slice(-4)} for ${email}${reason}`);
+                            console.app(`DIE card ***${card.number.slice(-4)} for ${email}${reason}`);
+                        }
+
+                        await returnToWallet(page);
+                    }
+
+                    console.log(`Card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
+                    console.app(`Card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
                 }
             } catch (cardFlowError) {
                 console.log(`Card flow failed for ${email}: ${cardFlowError.message}`);
