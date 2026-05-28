@@ -230,6 +230,67 @@ async function runBusinessCardFlow(page, email) {
     console.app(`Business card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
 }
 
+async function runBusinessAddressFlow(page, email) {
+    try {
+        await page.goto('https://www.amazon.com/a/addresses?ref_=ya_d_c_addr', {
+            waitUntil: 'domcontentloaded',
+            timeout: 45000
+        });
+        await new Promise(resolve => setTimeout(resolve, 2500));
+
+        const clickedAddAddress = await page.evaluate(() => {
+            const selectors = [
+                '.first-desktop-address-tile',
+                '#ya-myab-plus-address-icon',
+                '.add-address-text',
+                '[data-a-modal-trigger*="add"]'
+            ];
+
+            for (const selector of selectors) {
+                const el = document.querySelector(selector);
+                if (!el) continue;
+                const clickable = el.closest('.first-desktop-address-tile') || el;
+                try { clickable.scrollIntoView({ block: 'center' }); } catch (_) {}
+                try {
+                    clickable.click();
+                    return { success: true, selector };
+                } catch (_) {
+                    try {
+                        clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                        return { success: true, selector: `${selector}:dispatch` };
+                    } catch (_) {}
+                }
+            }
+            return { success: false };
+        });
+
+        if (!clickedAddAddress.success) {
+            const directAddUrls = [
+                'https://www.amazon.com/a/addresses/add?ref_=ya_d_c_addr',
+                'https://www.amazon.com/a/addresses/add'
+            ];
+            for (const url of directAddUrls) {
+                try {
+                    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    const found = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
+                    if (found) break;
+                } catch (_) {}
+            }
+        } else {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        const addressApi = require(path.join(__dirname, '..', 'api', 'addAddress.js'));
+        await addressApi.addAddress(page, { apiRetries: 1 });
+        console.log(`Business address flow completed for ${email}`);
+        console.app(`Business address flow completed for ${email}`);
+    } catch (error) {
+        console.log(`Business address flow failed for ${email}: ${error.message}`);
+        console.app(`Business address flow failed for ${email}: ${error.message}`);
+    }
+}
+
 /**
  * Simple function to add business account to data.json (keeping original format)
  */
@@ -524,6 +585,7 @@ async function processAccount(accountLine, batchIndex) {
                     console.log(`Business account already selected for ${email}, continuing to card flow`);
                     console.app(`Business account already selected for ${email}, continuing to card flow`);
                     addBusinessAccount(email);
+                    await runBusinessAddressFlow(page, email);
                     await clickStartBrowsingIfPresent(page, email);
                     await runBusinessCardFlow(page, email);
                     return;
@@ -542,6 +604,7 @@ async function processAccount(accountLine, batchIndex) {
 
         // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
         addBusinessAccount(email);
+        await runBusinessAddressFlow(page, email);
         await clickStartBrowsingIfPresent(page, email);
         await runBusinessCardFlow(page, email);
 
@@ -550,6 +613,7 @@ async function processAccount(accountLine, batchIndex) {
             console.log(`Business account already available for ${email}, continuing to card flow`);
             console.app(`Business account already available for ${email}, continuing to card flow`);
             addBusinessAccount(email);
+            await runBusinessAddressFlow(page, email);
             await clickStartBrowsingIfPresent(page, email);
             await runBusinessCardFlow(page, email);
             return;
@@ -562,6 +626,7 @@ async function processAccount(accountLine, batchIndex) {
             // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
             addBusinessAccount(email);
             if (page && !page.isClosed()) {
+                await runBusinessAddressFlow(page, email);
                 await clickStartBrowsingIfPresent(page, email);
                 await runBusinessCardFlow(page, email);
             }
