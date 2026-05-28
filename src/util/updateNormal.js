@@ -18,6 +18,20 @@ const proxies = fs.readFileSync(path.join(__dirname, '..', 'data', 'proxies.txt'
 let currentProxyIndex = 0;
 const maxConcurrentWindows = Math.max(proxies.length, 1);
 
+function parseProxyLine(line) {
+    const value = String(line || '').trim();
+    if (!value) return null;
+
+    if (value.includes('|')) {
+        const [hostPort, username, password] = value.split('|').map(part => part.trim());
+        const [host, port] = hostPort.split(':').map(part => part.trim());
+        return host && port ? { host, port, username, password } : null;
+    }
+
+    const [host, port, username, password] = value.split(':').map(part => part.trim());
+    return host && port ? { host, port, username, password } : null;
+}
+
 function normalizeCardLine(cardLine) {
     const [number, monthRaw, yearRaw, cvc, ...nameParts] = String(cardLine || '').split('|');
     if (!number || !monthRaw || !yearRaw || !cvc) return null;
@@ -68,169 +82,6 @@ async function returnToWallet(page) {
     }
 }
 
-async function removeLiveCardFromWallet(page, card, email) {
-    const last4 = card.number.slice(-4);
-
-    for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-            await returnToWallet(page);
-
-            const selected = await page.evaluate((targetLast4) => {
-                const isVisible = (el) => {
-                    if (!el) return false;
-                    const style = window.getComputedStyle(el);
-                    const rect = el.getBoundingClientRect();
-                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-                };
-
-                const candidates = Array.from(document.querySelectorAll(
-                    '[data-testid="pmts-credit-card-instrument"], [class*="payment-method"], [class*="instrument"], .pmts-portal-component, .a-row'
-                )).filter(isVisible);
-
-                const cardNode = candidates.find((el) => {
-                    const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ');
-                    return text.includes(targetLast4) && !text.toLowerCase().includes('add a payment method');
-                });
-
-                if (!cardNode) return false;
-                const clickable = cardNode.closest('[data-testid="pmts-credit-card-instrument"], [class*="payment-method"], [class*="instrument"], .a-row') || cardNode;
-                clickable.scrollIntoView({ block: 'center' });
-                clickable.click();
-                return true;
-            }, last4);
-
-            if (!selected) {
-                console.log(`WARN Could not find live card ***${last4} to remove for ${email}, attempt ${attempt}/3`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                continue;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 2500));
-
-            const editClicked = await page.evaluate(() => {
-                const isVisible = (el) => {
-                    if (!el) return false;
-                    const style = window.getComputedStyle(el);
-                    const rect = el.getBoundingClientRect();
-                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-                };
-
-                const links = Array.from(document.querySelectorAll('a, button, input[type="button"], input[type="submit"]')).filter(isVisible);
-                const edit = links.find((el) => {
-                    const meta = [
-                        el.innerText || '',
-                        el.textContent || '',
-                        el.value || '',
-                        el.getAttribute('aria-label') || '',
-                        el.href || '',
-                        el.className || ''
-                    ].join(' ').toLowerCase();
-                    return meta.includes('edit') || meta.includes('change');
-                });
-
-                if (!edit) return false;
-                edit.scrollIntoView({ block: 'center' });
-                edit.click();
-                return true;
-            });
-
-            if (!editClicked) {
-                console.log(`WARN Edit button not found for live card ***${last4}, attempt ${attempt}/3`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                continue;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 2500));
-
-            const removeClicked = await page.evaluate(() => {
-                const isVisible = (el) => {
-                    if (!el) return false;
-                    const style = window.getComputedStyle(el);
-                    const rect = el.getBoundingClientRect();
-                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-                };
-
-                const scope = document.querySelector('.a-popover[aria-hidden="false"], .a-popover-modal, [role="dialog"]') || document;
-                const links = Array.from(scope.querySelectorAll('a, button, input[type="button"], input[type="submit"]')).filter(isVisible);
-                const remove = links.find((el) => {
-                    const meta = [
-                        el.innerText || '',
-                        el.textContent || '',
-                        el.value || '',
-                        el.getAttribute('aria-label') || '',
-                        el.href || '',
-                        el.name || '',
-                        el.className || ''
-                    ].join(' ').toLowerCase();
-                    return meta.includes('remove') || meta.includes('delete');
-                });
-
-                if (!remove) return false;
-                remove.scrollIntoView({ block: 'center' });
-                remove.click();
-                return true;
-            });
-
-            if (!removeClicked) {
-                console.log(`WARN Remove button not found in edit dialog for live card ***${last4}, attempt ${attempt}/3`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                continue;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 2500));
-
-            const confirmed = await page.evaluate(() => {
-                const isVisible = (el) => {
-                    if (!el) return false;
-                    const style = window.getComputedStyle(el);
-                    const rect = el.getBoundingClientRect();
-                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-                };
-
-                const buttons = Array.from(document.querySelectorAll(
-                    '.a-popover[aria-hidden="false"] input, .a-popover[aria-hidden="false"] button, .a-popover-modal input, .a-popover-modal button, input, button'
-                )).filter(isVisible);
-
-                const confirm = buttons.find((el) => {
-                    const meta = [
-                        el.value || '',
-                        el.innerText || '',
-                        el.textContent || '',
-                        el.getAttribute('aria-label') || '',
-                        el.name || '',
-                        el.className || ''
-                    ].join(' ').toLowerCase();
-                    return meta.includes('remove without selecting') ||
-                        meta.includes('remove') ||
-                        meta.includes('delete') ||
-                        meta.includes('yes') ||
-                        meta.includes('confirm');
-                });
-
-                if (!confirm) return false;
-                confirm.click();
-                return true;
-            });
-
-            if (!confirmed) {
-                console.log(`WARN Remove confirm not found for live card ***${last4}, attempt ${attempt}/3`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                continue;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 3500));
-            console.log(`Removed live card ***${last4} for ${email}`);
-            console.app(`Removed live card ***${last4} for ${email}`);
-            return { success: true };
-        } catch (error) {
-            console.log(`WARN Remove live card ***${last4} failed attempt ${attempt}/3: ${error.message}`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-    }
-
-    return { success: false, error: 'REMOVE_LIVE_CARD_FAILED' };
-}
-
 async function updateNormal() {
     windowManager.reset();
     console.log('Starting normal login process...');
@@ -267,8 +118,7 @@ async function processAccount(accountLine, index) {
 
     let proxy = null;
     if (proxies.length > 0) {
-        const [host, port, username, password] = proxies[currentProxyIndex % proxies.length].split(':');
-        proxy = { host, port, username, password };
+        proxy = parseProxyLine(proxies[currentProxyIndex % proxies.length]);
         currentProxyIndex++;
     }
 
@@ -475,12 +325,6 @@ async function processAccount(accountLine, index) {
                             appendCardResult('live', card, email);
                             console.log(`LIVE card ***${card.number.slice(-4)} for ${email}`);
                             console.app(`LIVE card ***${card.number.slice(-4)} for ${email}`);
-
-                            const removeResult = await removeLiveCardFromWallet(page, card, email);
-                            if (!removeResult.success) {
-                                console.log(`WARN Live card ***${card.number.slice(-4)} was saved but not removed for ${email}: ${removeResult.error}`);
-                                console.app(`WARN Live card ***${card.number.slice(-4)} was saved but not removed for ${email}`);
-                            }
                         } else {
                             const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
                             dieCount++;

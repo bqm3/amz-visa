@@ -10,6 +10,20 @@ const childAccounts = fs.readFileSync(path.join(__dirname, "..", "data", 'acc.tx
     .map(line => line.trim())
     .filter(line => line.length > 0);
 
+function parseProxyLine(line) {
+    const value = String(line || '').trim();
+    if (!value) return null;
+
+    if (value.includes('|')) {
+        const [hostPort, username, password] = value.split('|').map(part => part.trim());
+        const [host, port] = hostPort.split(':').map(part => part.trim());
+        return host && port ? { host, port, username, password } : null;
+    }
+
+    const [host, port, username, password] = value.split(':').map(part => part.trim());
+    return host && port ? { host, port, username, password } : null;
+}
+
 const proxies = fs.readFileSync(path.join(__dirname, "..", "data", 'proxies.txt'), 'utf8')
     .replaceAll("\r", '')
     .split("\n")
@@ -36,9 +50,9 @@ function shouldSkipBusinessUpgrade(email) {
     const isAlreadyBusiness = businessAccounts.includes(email);
     
     if (isAlreadyBusiness) {
-        console.log(`⏭️ Skipping ${email} - Already a business account`);
-        console.app(`⏭️ Skipping ${email} - Already a business account`);
-        return true;
+        console.log(`Business account exists for ${email}, selecting Business account and continuing`);
+        console.app(`Business account exists for ${email}, selecting Business account and continuing`);
+        return false;
     }
     
     return false;
@@ -55,6 +69,166 @@ let currentProxyIndex = 0;
 
 const maxConcurrentWindows = Math.max(proxies.length, 1);
 let activeBrowsers = [];
+
+function normalizeCardLine(cardLine) {
+    const [number, monthRaw, yearRaw, cvc, ...nameParts] = String(cardLine || '').split('|');
+    if (!number || !monthRaw || !yearRaw || !cvc) return null;
+
+    const month = monthRaw.length === 1 ? `0${monthRaw}` : monthRaw;
+    const year = yearRaw.length === 2 ? `20${yearRaw}` : yearRaw;
+    const name = nameParts.join('|').trim() || 'Saint David';
+
+    return {
+        number: number.trim(),
+        month: month.trim(),
+        year: year.trim(),
+        cvc: cvc.trim(),
+        name,
+        raw: cardLine
+    };
+}
+
+function appendCardResult(kind, card, email, reason = '') {
+    const status = kind === 'live' ? 'LIVE' : 'DIE';
+    const base = `${status}|${card.number}|${card.month}|${card.year}|${card.cvc}`;
+    const namePart = card.name ? `|${card.name}` : '';
+    const accountPart = email ? `|Account:${email}` : '';
+    const reasonPart = reason ? `|Reason:${reason}` : '';
+    const line = `${base}${namePart}${accountPart}${reasonPart}`;
+
+    if (console.card && typeof console.card[kind] === 'function') {
+        console.card[kind](line);
+        return;
+    }
+
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const dirSave = global.data.dirSave || path.join(__dirname, '..', '..', 'output', formattedDate);
+    fs.mkdirSync(dirSave, { recursive: true });
+    fs.appendFileSync(path.join(dirSave, `${kind}.txt`), line + '\n', 'utf8');
+}
+
+async function clickStartBrowsingIfPresent(page, email) {
+    const started = Date.now();
+    while (Date.now() - started < 15000) {
+        try {
+            const clicked = await page.evaluate(() => {
+                const isVisible = (el) => {
+                    if (!el || el.disabled) return false;
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+                };
+
+                const candidates = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'))
+                    .filter(isVisible);
+                const button = candidates.find((el) => {
+                    const text = [
+                        el.innerText || '',
+                        el.textContent || '',
+                        el.value || '',
+                        el.getAttribute('aria-label') || ''
+                    ].join(' ').toLowerCase();
+                    return text.includes('start browsing');
+                });
+
+                if (!button) return false;
+                button.scrollIntoView({ block: 'center' });
+                button.click();
+                return true;
+            });
+
+            if (clicked) {
+                console.log(`Clicked Start browsing for ${email}`);
+                console.app(`Clicked Start browsing for ${email}`);
+                await Promise.race([
+                    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null),
+                    new Promise(resolve => setTimeout(resolve, 4000))
+                ]);
+                return true;
+            }
+        } catch (_) {}
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    console.log(`Start browsing button not found for ${email}, continuing to card flow`);
+    console.app(`Start browsing button not found for ${email}, continuing to card flow`);
+    return false;
+}
+
+async function returnToWallet(page) {
+    try {
+        await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
+            waitUntil: 'domcontentloaded',
+            timeout: 45000
+        });
+        await new Promise(resolve => setTimeout(resolve, 2500));
+    } catch (error) {
+        console.log(`WARN Could not return to wallet: ${error.message}`);
+    }
+}
+
+async function runBusinessCardFlow(page, email) {
+    const cardPath = path.join(__dirname, '..', 'data', 'card.txt');
+    const cardLines = fs.existsSync(cardPath)
+        ? fs.readFileSync(cardPath, 'utf8').replace(/\r/g, '').split('\n').map(v => v.trim()).filter(Boolean)
+        : [];
+
+    if (cardLines.length === 0) {
+        console.log(`No cards found in card.txt for ${email}`);
+        console.app(`No cards found in card.txt for ${email}`);
+        return;
+    }
+
+    if (console.card && typeof console.card.setTotal === 'function') {
+        console.card.setTotal(cardLines.length);
+    }
+
+    const addCard = require(path.join(__dirname, '..', 'api', 'addCard.js'));
+    let liveCount = 0;
+    let dieCount = 0;
+
+    await returnToWallet(page);
+
+    for (let cardIndex = 0; cardIndex < cardLines.length; cardIndex++) {
+        const card = normalizeCardLine(cardLines[cardIndex]);
+        if (!card) {
+            console.log(`Skipping invalid card line ${cardIndex + 1}: ${cardLines[cardIndex]}`);
+            continue;
+        }
+
+        const form = {
+            number: card.number,
+            month: card.month,
+            year: card.year,
+            name: card.name,
+            cvc: card.cvc
+        };
+
+        console.log(`Business card ${cardIndex + 1}/${cardLines.length} ***${card.number.slice(-4)} for ${email}`);
+        console.app(`Business card ${cardIndex + 1}/${cardLines.length} ***${card.number.slice(-4)} for ${email}`);
+
+        const res = await addCard(page, form);
+        if (res.success) {
+            liveCount++;
+            appendCardResult('live', card, email);
+            console.log(`LIVE business card ***${card.number.slice(-4)} for ${email}`);
+            console.app(`LIVE business card ***${card.number.slice(-4)} for ${email}`);
+        } else {
+            const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
+            dieCount++;
+            appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
+            console.log(`DIE business card ***${card.number.slice(-4)} for ${email}${reason}`);
+            console.app(`DIE business card ***${card.number.slice(-4)} for ${email}${reason}`);
+        }
+
+        await returnToWallet(page);
+    }
+
+    console.log(`Business card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
+    console.app(`Business card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
+}
 
 /**
  * Simple function to add business account to data.json (keeping original format)
@@ -347,7 +521,12 @@ async function processAccount(accountLine, batchIndex) {
                     ]);
                     console.log(`✓ [${batchIndex + 1}] Clicked Complete registration button`);
                 } else {
-                    throw new Error("ACCOUNT_ALREADY_BUSINESS");
+                    console.log(`Business account already selected for ${email}, continuing to card flow`);
+                    console.app(`Business account already selected for ${email}, continuing to card flow`);
+                    addBusinessAccount(email);
+                    await clickStartBrowsingIfPresent(page, email);
+                    await runBusinessCardFlow(page, email);
+                    return;
                 }
             } catch (error) {
                 throw new Error(error.message);
@@ -363,14 +542,29 @@ async function processAccount(accountLine, batchIndex) {
 
         // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
         addBusinessAccount(email);
+        await clickStartBrowsingIfPresent(page, email);
+        await runBusinessCardFlow(page, email);
 
     } catch (error) {
+        if (error.message.includes("ACCOUNT_ALREADY_BUSINESS") && page && !page.isClosed()) {
+            console.log(`Business account already available for ${email}, continuing to card flow`);
+            console.app(`Business account already available for ${email}, continuing to card flow`);
+            addBusinessAccount(email);
+            await clickStartBrowsingIfPresent(page, email);
+            await runBusinessCardFlow(page, email);
+            return;
+        }
+
         if (error.message.includes("Navigating frame was detached")) {
             console.log(`✅ [${batchIndex + 1}] Business account setup completed for: ${email} (frame detached - likely success)`);
             console.app(`✅ [${batchIndex + 1}] Business account setup completed for: ${email} (frame detached - likely success)`); 
             
             // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
             addBusinessAccount(email);
+            if (page && !page.isClosed()) {
+                await clickStartBrowsingIfPresent(page, email);
+                await runBusinessCardFlow(page, email);
+            }
             
         } else if (error.message.includes("ACCOUNT_ALREADY_BUSINESS")) {
             console.log(`✅ [${batchIndex + 1}] Account is already a business account: ${email}`);

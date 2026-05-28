@@ -371,13 +371,24 @@ async function verifyFieldsBeforeSubmit(page) {
         try {
             const state = await ctx.evaluate(() => {
                 const q = sel => document.querySelector(sel);
+                const isVisible = (el) => {
+                    if (!el || el.disabled || el.readOnly) return false;
+                    const s = window.getComputedStyle(el);
+                    const r = el.getBoundingClientRect();
+                    return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0 && r.height > 0;
+                };
                 const card  = q('input[name="addCreditCardNumber"]');
                 const name  = q('input[name="ppw-accountHolderName"]');
                 const month = q('select[name="ppw-expirationDate_month"]');
                 const year  = q('select[name="ppw-expirationDate_year"]');
-                const cvv   = q('input[name="addCreditCardVerificationNumber"]') ||
-                              q('input[autocomplete="cc-csc"]') ||
-                              q('input[name*="cvv" i]');
+                const cvvCandidates = [
+                    q('input[name="addCreditCardVerificationNumber"]'),
+                    q('input[autocomplete="cc-csc"]'),
+                    q('input[name*="cvv" i]'),
+                    q('input[name*="cvc" i]'),
+                    q('input[name*="verification" i]')
+                ].filter(Boolean);
+                const cvv = cvvCandidates.find(isVisible) || null;
 
                 return {
                     card:  (card?.value  || '').replace(/\D/g,'').length,
@@ -385,12 +396,49 @@ async function verifyFieldsBeforeSubmit(page) {
                     month: (month?.value || ''),
                     year:  (year?.value  || ''),
                     cvv:   (cvv?.value   || '').replace(/\D/g,'').length,
+                    cvvPresent: !!cvv,
                 };
             });
             if (state.card > 10) return state; // found the right frame
         } catch { /* try next frame */ }
     }
-    return { card: 0, name: 0, month: '', year: '', cvv: 0 };
+    return { card: 0, name: 0, month: '', year: '', cvv: 0, cvvPresent: false };
+}
+
+async function hasVisibleCvvField(page) {
+    const selectors = [
+        'input[autocomplete="cc-csc"]',
+        'input[name="addCreditCardVerificationNumber"]',
+        'input[name*="Verification"]',
+        'input[name*="verification"]',
+        'input[name*="cvv" i]',
+        'input[name*="cvc" i]',
+        'input[name*="csc" i]',
+        'input[id*="verification" i]',
+        'input[id*="cvv" i]',
+        'input[aria-label*="security code" i]',
+        'input[placeholder*="security code" i]',
+    ];
+
+    for (const frame of page.frames()) {
+        try {
+            const found = await frame.evaluate((sels) => {
+                const isVisible = (el) => {
+                    if (!el || el.disabled || el.readOnly) return false;
+                    const s = window.getComputedStyle(el);
+                    const r = el.getBoundingClientRect();
+                    return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0 && r.height > 0;
+                };
+                for (const sel of sels) {
+                    const el = document.querySelector(sel);
+                    if (isVisible(el)) return true;
+                }
+                return false;
+            }, selectors);
+            if (found) return true;
+        } catch { /* ignore */ }
+    }
+    return false;
 }
 
 // ─────────────────────────────────────────────
@@ -571,7 +619,7 @@ async function clickFilledPaymentFormSubmit(page, cardInfo) {
     if (preCheck.name < 2)   missing.push('name');
     if (!preCheck.month)     missing.push('month');
     if (!preCheck.year)      missing.push('year');
-    if (cardInfo.cvc && preCheck.cvv < 3) missing.push('cvv');
+    if (cardInfo.cvc && preCheck.cvvPresent && preCheck.cvv < 3) missing.push('cvv');
 
     if (missing.length > 0) {
         console.log(`⚠️ Fields empty before submit: ${missing.join(', ')} — aborting submit`);
@@ -982,9 +1030,14 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
             // CVV right after year (still in same iframe context)
             if (cardInfo.cvc) {
-                const cvvFill = await fillCvvAcrossFrames(targetPage, cardInfo.cvc, 8000);
-                if (!cvvFill.ok) throw new Error('CVV_FIELD_NOT_FILLED');
-                console.log(`✅ CVV filled: ${cvvFill.mode}`);
+                const cvvRequired = await hasVisibleCvvField(targetPage);
+                if (cvvRequired) {
+                    const cvvFill = await fillCvvAcrossFrames(targetPage, cardInfo.cvc, 8000);
+                    if (!cvvFill.ok) throw new Error('CVV_FIELD_NOT_FILLED');
+                    console.log(`✅ CVV filled: ${cvvFill.mode}`);
+                } else {
+                    console.log('ℹ️ CVV field not present on this form, skipping CVV input');
+                }
             }
         } catch (err) {
             if (err.message.includes('detached') || err.message === 'IFRAME_INVALID')

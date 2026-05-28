@@ -143,15 +143,15 @@ class WindowManager {
 
     reset() {
         this.currentIndex = 0;
-        console.log('🔄 Window positions reset - Ready for new 2x4 grid cycle');
+        console.log('🔄 Window positions reset - Ready for new 2x3 grid cycle');
     }
 
    
     showAllPositions() {
     
         this.windowPositions.forEach((pos, index) => {
-            const row = Math.floor(index / 4) + 1;
-            const col = (index % 4) + 1;
+            const row = Math.floor(index / 3) + 1;
+            const col = (index % 3) + 1;
             console.log(`   Position ${index + 1} (Row ${row}, Col ${col}): (${pos.x}, ${pos.y}) ${pos.width}x${pos.height}`);
         });
     }
