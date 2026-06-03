@@ -5,11 +5,11 @@ async function login(page, { email, pass, code, proxy }) {
     console.log("Business login function called with email:", email, "and password:", pass);
     console.app("Business login function called with email:", email, "and password:", pass);
 
-    const timeout = 30 * 60 * 1000;
+    const timeout = 30000; // 30 seconds timeout to fail fast on errors
     page.setDefaultTimeout(timeout);
     
     // Set navigation timeout separately
-    page.setDefaultNavigationTimeout(60000); // 60 seconds navigation timeout
+    page.setDefaultNavigationTimeout(30000); // 30 seconds navigation timeout
 
     if (proxy && proxy.username && proxy.password) {
         await page.authenticate({ username: proxy.username, password: proxy.password });

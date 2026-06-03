@@ -1,7 +1,7 @@
 const puppeteer = require('puppeteer');
 const path = require('path');
 const { type } = require('os');
-const timeout = 30 * 60 * 1000;
+const timeout = 15000; // 15 seconds timeout to fail fast on errors
 
 
 async function continueLogin(page) {
@@ -9,25 +9,30 @@ async function continueLogin(page) {
     const targetPage = page;
     const promises = [];
     const startWaitingForEvents = () => {
-      promises.push(targetPage.waitForNavigation());
+      promises.push(targetPage.waitForNavigation({ timeout: 8000 }).catch(() => null));
     }
-    await puppeteer.Locator.race([
-      targetPage.locator('::-p-aria(Yes, use current email) >>>> ::-p-aria([role=\\"generic\\"])'),
-      targetPage.locator('#create-account-form span'),
-      targetPage.locator('::-p-xpath(//*[@data-testid=\\"Primary.REGISTRATION_START_CREATE_ACCOUNT.create_shuma_account\\"]/span)'),
-      targetPage.locator(':scope >>> #create-account-form span'),
-      targetPage.locator('::-p-text(Yes, use current)')
-    ])
-      .setTimeout(timeout)
-      .on('action', () => startWaitingForEvents())
-      .click({
-        offset: {
-          x: 83.0374984741211,
-          y: 8.98748779296875,
-        },
-      });
+    try {
+      await puppeteer.Locator.race([
+        targetPage.locator('::-p-aria(Yes, use current email) >>>> ::-p-aria([role=\\"generic\\"])'),
+        targetPage.locator('#create-account-form span'),
+        targetPage.locator('::-p-xpath(//*[@data-testid=\\"Primary.REGISTRATION_START_CREATE_ACCOUNT.create_shuma_account\\"]/span)'),
+        targetPage.locator(':scope >>> #create-account-form span'),
+        targetPage.locator('::-p-text(Yes, use current)')
+      ])
+        .setTimeout(8000) // Optional step, use short timeout
+        .on('action', () => startWaitingForEvents())
+        .click({
+          offset: {
+            x: 83.0374984741211,
+            y: 8.98748779296875,
+          },
+        });
 
-    await Promise.all(promises);
+      await Promise.all(promises);
+      console.log("   ✅ Clicked continue login");
+    } catch (err) {
+      console.log("   ℹ️ Continue login step not found or skipped, proceeding directly...");
+    }
   }
 }
 
@@ -294,8 +299,11 @@ async function finalSetup(page) {
   }
 
   let check = false;
-  while (!check) {
-    console.log('Waiting for the skip upsell button to appear...');
+  let attempts = 0;
+  const maxAttempts = 5;
+  while (!check && attempts < maxAttempts) {
+    attempts++;
+    console.log(`Waiting for the skip upsell button to appear... (attempt ${attempts}/${maxAttempts})`);
     try {
       const targetPage = page;
       const promises = [];
@@ -324,6 +332,7 @@ async function finalSetup(page) {
 
       let frame = targetPage.mainFrame();
       frame = frame.childFrames()[0];
+      if (!frame) throw new Error("UPSELL_FRAME_NOT_FOUND");
 
       await puppeteer.Locator.race([
         frame.locator('::-p-aria(No, thanks)'),
@@ -340,6 +349,7 @@ async function finalSetup(page) {
           },
         });
     } catch (_) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
       continue;
     }
     check = true;

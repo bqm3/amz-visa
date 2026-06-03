@@ -1097,6 +1097,53 @@ async function addCard(page, cardInfo, retryCount = 0) {
             };
         }
 
+        // ── Step 9: Immediate reload & status check ──
+        console.log('⏳ Waiting 2s before reload...');
+        await new Promise(r => setTimeout(r, 2000));
+        
+        console.log('🔄 Reloading page to verify card status...');
+        try {
+            await safePageReload(page, 30000);
+            await new Promise(r => setTimeout(r, 3000));
+
+            // Wait for scroller to be visible
+            await page.waitForSelector('.a-scroller.apx-wallet-desktop-payment-method-selectable-tab-css.a-scroller-vertical', { timeout: 15000 });
+
+            const last4 = cardInfo.number.slice(-4);
+            const imgUrl = await page.evaluate((last4Digits) => {
+                const scroller = document.querySelector('.a-scroller.apx-wallet-desktop-payment-method-selectable-tab-css.a-scroller-vertical');
+                if (!scroller) return null;
+                const tabs = scroller.querySelectorAll('.apx-wallet-selectable-payment-method-tab');
+                for (const tab of tabs) {
+                    const text = tab.textContent || '';
+                    if (text.includes(last4Digits)) {
+                        const img = tab.querySelector('img.apx-wallet-selectable-image') || tab.querySelector('img');
+                        if (img) return img.src;
+                    }
+                }
+                return null;
+            }, last4);
+
+            if (imgUrl) {
+                console.log(`🔍 Card ***${last4} image URL detected: ${imgUrl}`);
+                const dieUrls = [
+                    'https://m.media-amazon.com/images/I/41MGiaNMk5L._SL85_.png',
+                    'https://m.media-amazon.com/images/I/81NBfFByidL._SL85_.png'
+                ];
+                if (dieUrls.includes(imgUrl)) {
+                    console.log(`❌ Card ***${last4} is DIE (matches restricted image: ${imgUrl})`);
+                    return { success: false, error: 'CARD_DIE', img: imgUrl };
+                } else {
+                    console.log(`✅ Card ***${last4} is LIVE (image: ${imgUrl})`);
+                    return { success: true, img: imgUrl };
+                }
+            } else {
+                console.log(`⚠️ Could not find card ***${last4} in wallet scroller after reload`);
+            }
+        } catch (err) {
+            console.log(`⚠️ Error checking card status: ${err.message}`);
+        }
+
         return { success: true };
 
     } catch (err) {

@@ -555,7 +555,7 @@ async function thread(page, browser, email, index, proxy) {
         let attempts = 1;
         const maxAttempts = 5;
         let lastAddCardError = getAddCardErrorCode(res);
-        while (!res.success && attempts < maxAttempts) {
+        while (!res.success && res.error !== 'CARD_DIE' && attempts < maxAttempts) {
             // console.log(`Retry attempt ${attempts}/${maxAttempts} for card: ${card}. Error: ${res.error || 'Unknown'}`); // ✅ REDUCED VERBOSITY
             // console.app(`Retry attempt ${attempts}/${maxAttempts} for card: ${card}. Error: ${res.error || 'Unknown'}`); // ✅ REMOVED
             lastAddCardError = getAddCardErrorCode(res);
@@ -597,147 +597,65 @@ async function thread(page, browser, email, index, proxy) {
         }
         
         if (!res.success) {
-            console.log(`Card add failed: ***${card.slice(-4)} after ${maxAttempts} attempts. Last error: ${lastAddCardError}`);
-            console.app(`❌ Card add failed: ***${card.slice(-4)}`);
-            continue;
-        }
+            if (res.error === 'CARD_DIE') {
+                console.log(`❌ Immediate DIE check for ***${form.number.slice(-4)}`);
+                let cardBin = await getCardInfo(form.number);
+                if (!cardBin.success) {
+                    cardBin = { scheme: 'Unknown', type: 'Unknown', cardTier: 'Unknown', a2: 'Unknown', country: 'Unknown', issuer: 'Unknown' };
+                }
+                console.card.die(`DIE|${form.number}|${form.month}|${form.year}|${form.cvc}|- Info Bank: ${cardBin.scheme}|${cardBin.type}|${cardBin.cardTier}|${cardBin.a2}|${cardBin.country}|${cardBin.issuer}`);
+                console.log(`❌ DIE - Card ***${form.number.slice(-4)}`);
+                console.app(`❌ DIE - Card ***${form.number.slice(-4)}`);
 
-        // Card info extraction with better error handling
-        let cardInfo = null;
-        let extractionAttempts = 0;
-        const maxExtractionAttempts = 3;
-        
-        while (!cardInfo && extractionAttempts < maxExtractionAttempts) {
-            extractionAttempts++;
-            // console.log(`Attempting to extract card info, attempt ${extractionAttempts}/${maxExtractionAttempts}`); // ✅ REMOVED
-            
-            try {
-                const selectorResults = await Promise.allSettled([
-                    page.waitForSelector('.a-size-base-plus.pmts-instrument-number-tail span', { timeout: 8000 }),
-                    page.waitForSelector('.pmts-instrument-number span', { timeout: 6000 }),
-                    page.waitForSelector('[class*="instrument-number"] span', { timeout: 6000 }),
-                    page.waitForSelector('[data-testid="pmts-credit-card-instrument"]', { timeout: 8000 })
-                ]);
-                
-                let workingSelector = null;
-                const selectors = [
-                    '.a-size-base-plus.pmts-instrument-number-tail span',
-                    '.pmts-instrument-number span',
-                    '[class*="instrument-number"] span',
-                    '[data-testid="pmts-credit-card-instrument"]'
-                ];
-                
-                for (let i = 0; i < selectorResults.length; i++) {
-                    if (selectorResults[i].status === 'fulfilled') {
-                        workingSelector = selectors[i];
-                        // console.log(`✅ Found working selector: ${workingSelector}`); // ✅ REMOVED
-                        break;
-                    }
+                // Remove the card immediately
+                const cardRemoved = await removeCard(page);
+                let removeRetries = 0;
+                const maxRemoveRetries = 3;
+                while (cardRemoved.reload && removeRetries < maxRemoveRetries) {
+                    removeRetries++;
+                    console.log(`   🔄 Retrying card removal ${removeRetries}/${maxRemoveRetries}`);
+                    await page.reload({ waitUntil: ["networkidle0", "domcontentloaded"] });
+                    await new Promise(resolve => setTimeout(resolve, randomInt(2000, 3000)));
+                    const retryRemove = await removeCard(page);
+                    if (retryRemove.success) break;
                 }
-                
-                if (!workingSelector) {
-                    // console.log(`❌ No working selector found on attempt ${extractionAttempts}, trying page navigation...`); // ✅ REMOVED
-                    
-                    await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', { 
-                        waitUntil: 'domcontentloaded',
-                        timeout: 15000
-                    });
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                    
-                    try {
-                        await page.waitForSelector('.a-size-base-plus.pmts-instrument-number-tail span', { timeout: 8000 });
-                        workingSelector = '.a-size-base-plus.pmts-instrument-number-tail span';
-                        // console.log('✅ Card info found after wallet navigation'); // ✅ REMOVED
-                    } catch (navError) {
-                        // console.log(`Still no card info after navigation: ${navError.message}`); // ✅ REMOVED
-                        if (extractionAttempts < maxExtractionAttempts) {
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                            continue;
-                        } else {
-                            throw new Error('Card extraction failed after all attempts');
-                        }
-                    }
-                }
-                
-                cardInfo = await page.evaluate((selector) => {
-                    let card = document.querySelector(selector);
-                    
-                    if (!card) {
-                        const cardSelectors = [
-                            '.a-size-base-plus.pmts-instrument-number-tail span',
-                            '.pmts-instrument-number span',
-                            '[class*="instrument-number"] span',
-                            '.pmts-instrument-display-number',
-                            '[data-testid="pmts-credit-card-instrument"] span'
-                        ];
-                        
-                        for (const sel of cardSelectors) {
-                            card = document.querySelector(sel);
-                            if (card && card.innerText) break;
-                        }
-                    }
 
-                    let link = null;
-                    const imgSelectors = [
-                        '.a-row.apx-wallet-payment-method-details-section.pmts-portal-component .a-fixed-left-grid-col.a-col-left img',
-                        '.pmts-portal-component img',
-                        '.apx-wallet-payment-method-details-section img',
-                        '[data-testid="pmts-credit-card-instrument"] img',
-                        '.pmts-instrument-brand img'
-                    ];
-                    
-                    for (const sel of imgSelectors) {
-                        link = document.querySelector(sel);
-                        if (link && link.src) break;
-                    }
-
-                    return {
-                        number: card ? card.innerText : '',
-                        link: link ? link.src : ''
-                    };
-                }, workingSelector);
-                
-                if (cardInfo && cardInfo.number) {
-                    // console.log(`✅ Successfully extracted card info: ${cardInfo.number}`); // ✅ REMOVED
-                    break;
-                } else {
-                    // console.log(`❌ Card info extraction returned empty data`); // ✅ REMOVED
-                    cardInfo = null;
-                }
-                
-            } catch (error) {
-                // console.log(`Card info extraction attempt ${extractionAttempts} failed: ${error.message}`); // ✅ REMOVED
-                if (extractionAttempts < maxExtractionAttempts) {
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                } else {
-                    // console.log(`❌ Failed to extract card info after ${maxExtractionAttempts} attempts, skipping card ${card}`); // ✅ REMOVED
-                    break;
-                }
+                data.childCount[email] = (data.childCount[email] || 0) + 1;
+                fs.writeFileSync(path.join(__dirname, "..", "data", 'data.json'), JSON.stringify(data, null, 2), 'utf8');
+                saveRemainingCards();
+            } else {
+                console.log(`Card add failed: ***${card.slice(-4)} after ${maxAttempts} attempts. Last error: ${lastAddCardError}`);
+                console.app(`❌ Card add failed: ***${card.slice(-4)}`);
             }
-        }
-
-        if (!cardInfo || !cardInfo.number) {
-            console.log(`⚠️ No card info found: ***${card.slice(-4)}`);
-            console.app(`⚠️ No card info found: ***${card.slice(-4)}`);
             continue;
         }
 
-        let fourNum = cardInfo.number.split('•••• ')[1];
-        if (!fourNum) {
-            // console.log(`Could not extract last 4 digits from ${cardInfo.number}, using full number`); // ✅ REMOVED
-            fourNum = cardInfo.number.replace(/\D/g, '').slice(-4);
+        // res.success is true (LIVE)
+        console.log(`✅ Immediate LIVE check success: ***${form.number.slice(-4)}`);
+        let cardBin = await getCardInfo(form.number);
+        if (!cardBin.success) {
+            cardBin = { scheme: 'Unknown', type: 'Unknown', cardTier: 'Unknown', a2: 'Unknown', country: 'Unknown', issuer: 'Unknown' };
         }
-        
-        global.temp.checkCard[index][fourNum] = {
-            img: cardInfo.link,
-            card: form
+        console.card.live(`LIVE|${form.number}|${form.month}|${form.year}|${form.cvc}|- Info Bank: ${cardBin.scheme}|${cardBin.type}|${cardBin.cardTier}|${cardBin.a2}|${cardBin.country}|${cardBin.issuer}`);
+        console.log(`✅ LIVE - Card ***${form.number.slice(-4)}`);
+        console.app(`✅ LIVE - Card ***${form.number.slice(-4)}`);
+
+        // Remove the card immediately
+        const cardRemoved = await removeCard(page);
+        let removeRetries = 0;
+        const maxRemoveRetries = 3;
+        while (cardRemoved.reload && removeRetries < maxRemoveRetries) {
+            removeRetries++;
+            console.log(`   🔄 Retrying card removal ${removeRetries}/${maxRemoveRetries}`);
+            await page.reload({ waitUntil: ["networkidle0", "domcontentloaded"] });
+            await new Promise(resolve => setTimeout(resolve, randomInt(2000, 3000)));
+            const retryRemove = await removeCard(page);
+            if (retryRemove.success) break;
         }
 
         data.childCount[email] = (data.childCount[email] || 0) + 1;
-        console.log(`✅ Card added: ${email} (${data.childCount[email]}/80)`);
-        console.app(`✅ Card added: ${email} (${data.childCount[email]}/80)`);
-        
         fs.writeFileSync(path.join(__dirname, "..", "data", 'data.json'), JSON.stringify(data, null, 2), 'utf8');
+        saveRemainingCards();
         
         await new Promise(resolve => setTimeout(resolve, randomInt(1000, 2000)));
     }
