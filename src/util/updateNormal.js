@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
 const windowManager = require('./windowManager');
+const sharedCardQueue = require('./sharedCardQueue');
 
 const accounts = fs.readFileSync(path.join(__dirname, '..', 'data', 'acc.txt'), 'utf8')
     .replaceAll('\r', '')
@@ -16,7 +17,7 @@ const proxies = fs.readFileSync(path.join(__dirname, '..', 'data', 'proxies.txt'
     .filter(Boolean);
 
 let currentProxyIndex = 0;
-const maxConcurrentWindows = Math.max(proxies.length, 1);
+let maxConcurrentWindows = 1; // Will be set at runtime in updateNormal()
 
 function parseProxyLine(line) {
     const value = String(line || '').trim();
@@ -83,9 +84,28 @@ async function returnToWallet(page) {
 }
 
 async function updateNormal() {
+    // ✅ RESET STATE FOR NEW RUN
+    currentProxyIndex = 0;
+    
+    // ✅ Use numChrome from UI config, fallback to proxy count, minimum 1
+    maxConcurrentWindows = (global.uiConfig && global.uiConfig.numChrome) 
+        ? global.uiConfig.numChrome 
+        : Math.max(proxies.length, 1);
+    
     windowManager.reset();
+    console.log(`🖥️ Max concurrent Chrome: ${maxConcurrentWindows}`);
+    console.app(`🖥️ Max concurrent Chrome: ${maxConcurrentWindows}`);
     console.log('Starting normal login process...');
     console.app('Starting normal login process...');
+
+    const cardPath = path.join(__dirname, '..', 'data', 'card.txt');
+    const cardLines = fs.existsSync(cardPath)
+        ? fs.readFileSync(cardPath, 'utf8').replace(/\r/g, '').split('\n').map(v => v.trim()).filter(Boolean)
+        : [];
+    sharedCardQueue.initialize(cardLines, true);
+    if (console.card && typeof console.card.setTotal === 'function') {
+        console.card.setTotal(cardLines.length);
+    }
 
     if (accounts.length === 0) {
         console.log('No accounts found in acc.txt');
@@ -125,8 +145,28 @@ async function processAccount(accountLine, index) {
     let browser;
     try {
         const windowPosition = windowManager.getNextPosition();
+        const userDataDir = path.join(__dirname, '..', 'data', 'chrome-profiles', `normal-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`);
+        const defaultProfileDir = path.join(userDataDir, 'Default');
+        fs.mkdirSync(defaultProfileDir, { recursive: true });
+        fs.writeFileSync(path.join(defaultProfileDir, 'Preferences'), JSON.stringify({
+            credentials_enable_service: false,
+            profile: {
+                password_manager_enabled: false,
+                password_manager_leak_detection: false
+            },
+            autofill: {
+                profile_enabled: false,
+                credit_card_enabled: false,
+                credit_card_fido_auth_enabled: false
+            },
+            payments: {
+                can_make_payment_enabled: false
+            }
+        }, null, 2), 'utf8');
+
         const launchOptions = {
             headless: !global.data.settings.showBrowser,
+            userDataDir,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -141,6 +181,12 @@ async function processAccount(accountLine, index) {
                 '--disable-save-password-bubble',
                 '--disable-autofill-keyboard-accessory-view',
                 '--disable-autofill-keyboard-accessory',
+                '--disable-autofill-type-predictions',
+                '--disable-features=AutofillServerCommunication,AutofillEnableAccountWalletStorage,PasswordManagerOnboarding,PasswordManagerSettingsMigration',
+                '--disable-password-generation',
+                '--disable-password-manager-reauthentication',
+                '--password-store=basic',
+                '--use-mock-keychain',
                 '--disable-translate'
             ],
             defaultViewport: null
@@ -283,28 +329,26 @@ async function processAccount(accountLine, index) {
                 });
                 await new Promise(resolve => setTimeout(resolve, 1500));
 
-                const cardPath = path.join(__dirname, '..', 'data', 'card.txt');
-                const cardLines = fs.existsSync(cardPath)
-                    ? fs.readFileSync(cardPath, 'utf8').replace(/\r/g, '').split('\n').map(v => v.trim()).filter(Boolean)
-                    : [];
-
-                if (cardLines.length === 0) {
-                    console.log(`No cards found in card.txt for ${email}`);
-                    console.app(`No cards found in card.txt for ${email}`);
+                if (sharedCardQueue.remainingCount() === 0) {
+                    console.log(`No shared cards available for ${email}`);
+                    console.app(`No shared cards available for ${email}`);
                 } else {
                     const addCard = require(path.join(__dirname, '..', 'api', 'addCard.js'));
-                    if (console.card && typeof console.card.setTotal === 'function') {
-                        console.card.setTotal(cardLines.length);
-                    }
 
                     let liveCount = 0;
                     let dieCount = 0;
 
-                    for (let cardIndex = 0; cardIndex < cardLines.length; cardIndex++) {
-                        const card = normalizeCardLine(cardLines[cardIndex]);
+                    while (true) {
+                        if (!page || page.isClosed()) {
+                            console.app(`Page closed for ${email}, stop claiming shared cards`);
+                            break;
+                        }
+
+                        const card = sharedCardQueue.claimNextCard(email);
                         if (!card) {
-                            console.log(`Skipping invalid card line ${cardIndex + 1}: ${cardLines[cardIndex]}`);
-                            continue;
+                            console.log(`No more shared cards for ${email}`);
+                            console.app(`No more shared cards for ${email}`);
+                            break;
                         }
 
                         const form = {
@@ -315,8 +359,8 @@ async function processAccount(accountLine, index) {
                             cvc: card.cvc
                         };
 
-                        console.log(`Processing card ${cardIndex + 1}/${cardLines.length} ***${card.number.slice(-4)} for ${email}`);
-                        console.app(`Processing card ${cardIndex + 1}/${cardLines.length} ***${card.number.slice(-4)} for ${email}`);
+                        console.log(`Processing shared card ***${card.number.slice(-4)} for ${email}`);
+                        console.app(`Processing shared card ***${card.number.slice(-4)} for ${email}`);
 
                         const res = await addCard(page, form);
 
@@ -331,6 +375,12 @@ async function processAccount(accountLine, index) {
                             appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
                             console.log(`DIE card ***${card.number.slice(-4)} for ${email}${reason}`);
                             console.app(`DIE card ***${card.number.slice(-4)} for ${email}${reason}`);
+
+                            const fatalReason = `${res.step || ''} ${res.error || ''}`.toLowerCase();
+                            if (fatalReason.includes('page_closed') || fatalReason.includes('detached frame') || fatalReason.includes('session closed')) {
+                                console.app(`Fatal page/frame error for ${email}, stop claiming shared cards`);
+                                break;
+                            }
                         }
 
                         await returnToWallet(page);

@@ -188,3 +188,5 @@ coverage/
 # Misc
 *.tmp
 *.temp
+
+src/data/chrome-profiles

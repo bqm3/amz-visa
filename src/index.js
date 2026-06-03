@@ -304,20 +304,12 @@ function createMainWindow(centralWidget) {
     
     statsLayout.addWidget(totalStatsContainer, 1);
 
-    // --- Scan Card Row ---
+    // --- Action Row (Scan Card, Login buttons) ---
     const actionContainer = new QWidget();
     const actionLayout = new QBoxLayout(0); // LeftToRight
     actionLayout.setContentsMargins(0, 0, 0, 0);
     actionLayout.setSpacing(10);
     actionContainer.setLayout(actionLayout);
-
-    const checkAfterLabel = new QLabel();
-    checkAfterLabel.setText("Check after (sec):");
-    
-    const checkAfterInput = new QLineEdit();
-    checkAfterInput.setText("30"); // Default value 30 seconds
-    checkAfterInput.setFixedWidth(60); // Make the input field smaller
-    checkAfterInput.setToolTip("Wait time in seconds before checking wallet (minimum: 1s, recommended: 60s)");
 
     const scanButton = new QPushButton();
     scanButton.setText("Scan Card");
@@ -334,8 +326,6 @@ function createMainWindow(centralWidget) {
     const fileCardButton = new QPushButton();
     fileCardButton.setText("Open Cards File");
 
-    actionLayout.addWidget(checkAfterLabel);
-    actionLayout.addWidget(checkAfterInput);
     actionLayout.addWidget(scanButton);
     actionLayout.addWidget(businessLoginButton);
     actionLayout.addWidget(normalLoginButton);
@@ -347,7 +337,7 @@ function createMainWindow(centralWidget) {
     cardLogLayout.addWidget(statsSection); // Add stats section to card log layout
     cardLogLayout.addWidget(actionContainer);
 
-    // Settings Section
+    // Actions Section
     const settingsSection = new QWidget();
     settingsSection.setProperty("class", "section");
     const settingsLayout = new QBoxLayout(2); // TopToBottom
@@ -356,21 +346,8 @@ function createMainWindow(centralWidget) {
     settingsSection.setLayout(settingsLayout);
 
     const settingsTitle = new QLabel();
-    settingsTitle.setText("Settings");
+    settingsTitle.setText("Actions");
     settingsTitle.setProperty("class", "section-title");
-
-    const settingsOptionsContainer = new QWidget();
-    const settingsOptionsLayout = new QBoxLayout(0); // LeftToRight
-    settingsOptionsLayout.setContentsMargins(0, 0, 0, 0);
-    settingsOptionsLayout.setSpacing(10);
-    settingsOptionsContainer.setLayout(settingsOptionsLayout);
-
-    const showBrowserCheckbox = new QCheckBox();
-    showBrowserCheckbox.setText("Show Browser");
-    showBrowserCheckbox.setChecked(true);
-
-    settingsOptionsLayout.addWidget(showBrowserCheckbox);
-    settingsOptionsLayout.addStretch(1);
 
     const settingsButtonsContainer = new QWidget();
     const settingsButtonsLayout = new QBoxLayout(0); // LeftToRight
@@ -378,19 +355,14 @@ function createMainWindow(centralWidget) {
     settingsButtonsLayout.setSpacing(10);
     settingsButtonsContainer.setLayout(settingsButtonsLayout);
 
-    const saveSettingsButton = new QPushButton();
-    saveSettingsButton.setText("Save Settings");
-
     const openFolderButton = new QPushButton();
     openFolderButton.setText("Open Output Folder");
     openFolderButton.setStyleSheet("background-color: #fab387;");
 
-    settingsButtonsLayout.addWidget(saveSettingsButton);
     settingsButtonsLayout.addWidget(openFolderButton);
     settingsButtonsLayout.addStretch(1);
 
     settingsLayout.addWidget(settingsTitle);
-    settingsLayout.addWidget(settingsOptionsContainer);
     settingsLayout.addWidget(settingsButtonsContainer);
     settingsLayout.addStretch(1);
 
@@ -413,27 +385,88 @@ function createMainWindow(centralWidget) {
     dataFilesSection.setLayout(dataFilesLayout);
 
     const dataFilesTitle = new QLabel();
-    dataFilesTitle.setText("Data Files");
+    dataFilesTitle.setText("Configuration");
     dataFilesTitle.setProperty("class", "section-title");
+    dataFilesLayout.addWidget(dataFilesTitle);
 
+    // Chrome instances input (user manually sets number)
+    const chromeInputContainer = new QWidget();
+    const chromeInputLayout = new QBoxLayout(0); // LeftToRight
+    chromeInputLayout.setContentsMargins(0, 0, 0, 0);
+    chromeInputLayout.setSpacing(10);
+    chromeInputContainer.setLayout(chromeInputLayout);
+
+    const chromeLabel = new QLabel();
+    chromeLabel.setText("Number of Chrome:");
+    
+    const chromeCountInput = new QLineEdit();
+    chromeCountInput.setText("1"); // Default 1 Chrome
+    chromeCountInput.setFixedWidth(80);
+    chromeCountInput.setToolTip("Number of Chrome instances to run in parallel (all Chrome share one sequential card queue)");
+
+    chromeInputLayout.addWidget(chromeLabel);
+    chromeInputLayout.addWidget(chromeCountInput);
+    chromeInputLayout.addStretch(1);
+    dataFilesLayout.addWidget(chromeInputContainer);
+
+    // Check after (sec) setting
+    const checkAfterSettingContainer = new QWidget();
+    const checkAfterSettingLayout = new QBoxLayout(0); // LeftToRight
+    checkAfterSettingLayout.setContentsMargins(0, 0, 0, 0);
+    checkAfterSettingLayout.setSpacing(10);
+    checkAfterSettingContainer.setLayout(checkAfterSettingLayout);
+
+    const checkAfterLabel = new QLabel();
+    checkAfterLabel.setText("Check after (sec):");
+    
+    const checkAfterInput = new QLineEdit();
+    checkAfterInput.setText("10"); // Default value 10 seconds
+    checkAfterInput.setFixedWidth(80);
+    checkAfterInput.setToolTip("Wait time in seconds before checking wallet (minimum: 1s, recommended: 60s)");
+
+    checkAfterSettingLayout.addWidget(checkAfterLabel);
+    checkAfterSettingLayout.addWidget(checkAfterInput);
+    checkAfterSettingLayout.addStretch(1);
+    dataFilesLayout.addWidget(checkAfterSettingContainer);
+
+    // Show Browser checkbox
+    const showBrowserCheckbox = new QCheckBox();
+    showBrowserCheckbox.setText("Show Browser");
+    showBrowserCheckbox.setChecked(true);
+    dataFilesLayout.addWidget(showBrowserCheckbox);
+
+    // File buttons row
     const fileButtonsContainer = new QWidget();
     const fileButtonsLayout = new QBoxLayout(0); // LeftToRight
     fileButtonsLayout.setContentsMargins(0, 0, 0, 0);
     fileButtonsLayout.setSpacing(10);
     fileButtonsContainer.setLayout(fileButtonsLayout);
 
-    const accChildButton = new QPushButton();
-    accChildButton.setText("Accounts");
+    const accButton = new QPushButton();
+    accButton.setText("Accounts");
+
+    const cardButton = new QPushButton();
+    cardButton.setText("Cards");
 
     const proxyButton = new QPushButton();
     proxyButton.setText("Proxies");
 
-    fileButtonsLayout.addWidget(accChildButton);
+    fileButtonsLayout.addWidget(accButton);
+    fileButtonsLayout.addWidget(cardButton);
     fileButtonsLayout.addWidget(proxyButton);
     fileButtonsLayout.addStretch(1);
-
-    dataFilesLayout.addWidget(dataFilesTitle);
     dataFilesLayout.addWidget(fileButtonsContainer);
+
+    // Apply button
+    const applyConfigButton = new QPushButton();
+    applyConfigButton.setText("Apply Config");
+    applyConfigButton.setStyleSheet("background-color: #a6e3a1; color: #1e1e2e;");
+    dataFilesLayout.addWidget(applyConfigButton);
+
+    const configInfoLabel = new QLabel();
+    configInfoLabel.setText("Chrome: 1 instance | Files: acc.txt, card.txt");
+    configInfoLabel.setStyleSheet("color: #6c7086; font-size: 11px;");
+    dataFilesLayout.addWidget(configInfoLabel);
 
     // Terminal Section
     const terminalSection = new QWidget();
@@ -514,7 +547,20 @@ function createMainWindow(centralWidget) {
     rootLayout.addWidget(leftContainer, 1);
     rootLayout.addWidget(rightContainer, 1);
 
-    // Event handlers
+    // Event handlers - Add process tracking flag
+    let isProcessRunning = false;
+    
+    const disableButtons = (disabled) => {
+        scanButton.setEnabled(!disabled);
+        businessLoginButton.setEnabled(!disabled);
+        normalLoginButton.setEnabled(!disabled);
+        applyConfigButton.setEnabled(!disabled);
+        fileCardButton.setEnabled(!disabled);
+        accButton.setEnabled(!disabled);
+        cardButton.setEnabled(!disabled);
+        proxyButton.setEnabled(!disabled);
+        openFolderButton.setEnabled(!disabled);
+    };
 
     cardLiveTitle.addEventListener('clicked', () => {
         const cardLiveTitle = path.join(__dirname, "data", 'live.txt');
@@ -536,27 +582,47 @@ function createMainWindow(centralWidget) {
         });
     });    
     scanButton.addEventListener('clicked', async () => {
+        if (isProcessRunning) {
+            appendToTerminal(terminal.toPlainText() + "\n" + "⚠️ Another process is already running. Please wait...");
+            return;
+        }
+        
         const value = parseInt(checkAfterInput.text());
         if (isNaN(value) || value < 1) {
             checkAfterInput.setText("60");
         }
         global.data.settings.checkAfter = Math.max(value, 1) * 1000;
         
+        isProcessRunning = true;
+        disableButtons(true);
+        
         // âœ… RESET WINDOW POSITIONS BEFORE STARTING
         windowManager.reset();
         
         appendToTerminal(terminal.toPlainText() + "\n" + `ðŸªŸ Window grid initialized for card scanning...`);
-        appendToTerminal(terminal.toPlainText() + "\n" + `ðŸ“Š Scanning ${global.data.cardTotal || 0} cards with ${Math.max(value, 1)}s delay...`);
+        appendToTerminal(terminal.toPlainText() + "\n" + `ðŸ"Š Scanning ${global.data.cardTotal || 0} cards with ${Math.max(value, 1)}s delay...`);
         
         try {
             await require(path.join(__dirname, "util", "checkCard.js"))();
+            appendToTerminal(terminal.toPlainText() + "\n" + "✅ Card scan completed!");
         } catch (error) {
             console.error("Error during card scan:", error);
             appendToTerminal(terminal.toPlainText() + "\n" + "Error during card scan: " + error.message);
+        } finally {
+            isProcessRunning = false;
+            disableButtons(false);
         }
     });
 
     normalLoginButton.addEventListener('clicked', async () => {
+        if (isProcessRunning) {
+            appendToTerminal(terminal.toPlainText() + "\n" + "⚠️ Another process is already running. Please wait...");
+            return;
+        }
+        
+        isProcessRunning = true;
+        disableButtons(true);
+        
         // âœ… RESET WINDOW POSITIONS BEFORE STARTING
         windowManager.reset();
         
@@ -564,11 +630,13 @@ function createMainWindow(centralWidget) {
         appendToTerminal(terminal.toPlainText() + "\n" + "ðŸš€ Starting Normal Login Process...");
         
         try {
-            // â­ LOAD AND SHOW STATISTICS BEFORE PROCESSING
+            // â­ LOAD AND SHOW STATISTICS BEFORE PROCESSING
             const accPath = path.join(__dirname, "data", 'acc.txt');
             
             if (!fs.existsSync(accPath)) {
-                appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Account file not found: " + accPath);
+                appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Account file not found: " + accPath);
+                isProcessRunning = false;
+                disableButtons(false);
                 return;
             }
 
@@ -577,11 +645,22 @@ function createMainWindow(centralWidget) {
             
         } catch (error) {
             console.error("Error during normal login:", error);
-            appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Error during normal login: " + error.message);
+            appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Error during normal login: " + error.message);
+        } finally {
+            isProcessRunning = false;
+            disableButtons(false);
         }
     });
 
     businessLoginButton.addEventListener('clicked', async () => {
+        if (isProcessRunning) {
+            appendToTerminal(terminal.toPlainText() + "\n" + "⚠️ Another process is already running. Please wait...");
+            return;
+        }
+        
+        isProcessRunning = true;
+        disableButtons(true);
+        
         // âœ… RESET WINDOW POSITIONS BEFORE STARTING
         windowManager.reset();
         
@@ -589,11 +668,13 @@ function createMainWindow(centralWidget) {
         appendToTerminal(terminal.toPlainText() + "\n" + "ðŸš€ Starting Business Login Process...");
         
         try {
-            // â­ LOAD AND SHOW STATISTICS BEFORE PROCESSING
+            // â­ LOAD AND SHOW STATISTICS BEFORE PROCESSING
             const accPath = path.join(__dirname, "data", 'acc.txt');
             
             if (!fs.existsSync(accPath)) {
-                appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Account file not found: " + accPath);
+                appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Account file not found: " + accPath);
+                isProcessRunning = false;
+                disableButtons(false);
                 return;
             }
 
@@ -602,7 +683,10 @@ function createMainWindow(centralWidget) {
             
         } catch (error) {
             console.error("Error during business login:", error);
-            appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Error during business login: " + error.message);
+            appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Error during business login: " + error.message);
+        } finally {
+            isProcessRunning = false;
+            disableButtons(false);
         }
     });
 
@@ -616,14 +700,88 @@ function createMainWindow(centralWidget) {
         });
     });
 
-    accChildButton.addEventListener('clicked', () => {
+    accButton.addEventListener('clicked', () => {
         const accFilePath = path.join(__dirname, "data", 'acc.txt');
-
         exec(`notepad "${accFilePath}"`, (err) => {
             if (err) {
-                appendToTerminal(terminal.toPlainText() + "\nError opening acc.txt: " + err.message);
+                appendToTerminal(terminal.toPlainText() + "\n❌ Error opening acc.txt: " + err.message);
             }
         });
+    });
+
+    cardButton.addEventListener('clicked', () => {
+        const cardFilePath = path.join(__dirname, "data", 'card.txt');
+        exec(`notepad "${cardFilePath}"`, (err) => {
+            if (err) {
+                appendToTerminal(terminal.toPlainText() + "\n❌ Error opening card.txt: " + err.message);
+            }
+        });
+    });
+
+    applyConfigButton.addEventListener('clicked', () => {
+        // Validate files exist
+        const accPath = path.join(__dirname, "data", 'acc.txt');
+        const cardPath = path.join(__dirname, "data", 'card.txt');
+
+        if (!fs.existsSync(accPath)) {
+            appendToTerminal(terminal.toPlainText() + "\n❌ acc.txt not found. Please create the file.");
+            return;
+        }
+        if (!fs.existsSync(cardPath)) {
+            appendToTerminal(terminal.toPlainText() + "\n❌ card.txt not found. Please create the file.");
+            return;
+        }
+
+        // Read file counts for display
+        try {
+            const accounts = fs.readFileSync(accPath, 'utf8')
+                .replaceAll('\r', '').split('\n')
+                .map(l => l.trim()).filter(l => l.length > 0);
+            const cards = fs.readFileSync(cardPath, 'utf8')
+                .replaceAll('\r', '').split('\n')
+                .map(l => l.trim()).filter(l => l.length > 0);
+
+            // Get user-inputted Chrome count
+            let numChrome = Math.max(1, parseInt(chromeCountInput.text()) || 1);
+
+            if (numChrome > accounts.length) {
+                appendToTerminal(terminal.toPlainText() + `\n⚠️ Warning: ${numChrome} Chrome nhưng chỉ có ${accounts.length} account!`);
+                appendToTerminal(terminal.toPlainText() + `\n⚠️ Mỗi Chrome cần 1 account riêng để login. Tự động giảm xuống ${accounts.length} Chrome.`);
+                numChrome = accounts.length;
+                chromeCountInput.setText(String(numChrome));
+            }
+
+            // ✅ STORE ACTUAL ACCOUNTS AND CARDS IN global.uiConfig
+            global.uiConfig = {
+                numChrome: numChrome,
+                accounts: accounts,
+                cards: cards,
+                source: 'file'
+            };
+
+            // ✅ SAVE SETTINGS: Check after and Show Browser
+            const checkAfterValue = parseInt(checkAfterInput.text());
+            const showBrowser = showBrowserCheckbox.isChecked();
+            
+            global.data.settings.checkAfter = Math.max(checkAfterValue, 1) * 1000;
+            global.data.settings.showBrowser = showBrowser;
+
+            // Update card total in UI
+            global.data.cardTotal = cards.length;
+            if (console.card && typeof console.card.setTotal === 'function') {
+                console.card.setTotal(cards.length);
+            }
+
+            configInfoLabel.setText(`✅ ${accounts.length} acc(s), ${cards.length} card(s), ${numChrome} Chrome`);
+            configInfoLabel.setStyleSheet("color: #a6e3a1; font-size: 11px;");
+            appendToTerminal(terminal.toPlainText() + `\n✅ Config applied: ${accounts.length} account(s), ${cards.length} card(s), ${numChrome} Chrome instance(s)`);
+            appendToTerminal(terminal.toPlainText() + `\n⚙️ Settings: Check after ${checkAfterValue}s, Show browser: ${showBrowser ? 'Yes' : 'No'}`);
+
+            appendToTerminal(terminal.toPlainText() + `\n📊 Card queue: shared sequential queue, one claimed card per account turn`);
+            appendToTerminal(terminal.toPlainText() + `\n🔄 Account rotation: ${accounts.length} account(s) in queue, auto-switch on lock`);
+        } catch (err) {
+            appendToTerminal(terminal.toPlainText() + `\n❌ Error reading files: ${err.message}`);
+        }
     });
 
     proxyButton.addEventListener('clicked', () => {
@@ -634,15 +792,6 @@ function createMainWindow(centralWidget) {
                 appendToTerminal(terminal.toPlainText() + "\nError opening proxies.txt: " + err.message);
             }
         });
-    });
-
-    saveSettingsButton.addEventListener('clicked', () => {
-        const showBrowser = showBrowserCheckbox.isChecked();
-
-        global.data.settings.showBrowser = showBrowser;
-
-        appendToTerminal(terminal.toPlainText() + "\n" +
-            `Settings updated: Show browser: ${showBrowser}`);
     });
 
     openFolderButton.addEventListener('clicked', () => {

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const sharedCardQueue = require('./sharedCardQueue');
 const windowManager = require('./windowManager'); // ✅ ADD IMPORT
 
 // Load data files
@@ -66,8 +67,7 @@ if (proxies.length === 0) {
 
 let currentAccountIndex = 0;
 let currentProxyIndex = 0;
-
-const maxConcurrentWindows = Math.max(proxies.length, 1);
+let maxConcurrentWindows = 1; // Will be set at runtime in updateBusiness()
 let activeBrowsers = [];
 
 function normalizeCardLine(cardLine) {
@@ -170,19 +170,10 @@ async function returnToWallet(page) {
 }
 
 async function runBusinessCardFlow(page, email) {
-    const cardPath = path.join(__dirname, '..', 'data', 'card.txt');
-    const cardLines = fs.existsSync(cardPath)
-        ? fs.readFileSync(cardPath, 'utf8').replace(/\r/g, '').split('\n').map(v => v.trim()).filter(Boolean)
-        : [];
-
-    if (cardLines.length === 0) {
-        console.log(`No cards found in card.txt for ${email}`);
-        console.app(`No cards found in card.txt for ${email}`);
+    if (sharedCardQueue.remainingCount() === 0) {
+        console.log(`No shared cards available for ${email}`);
+        console.app(`No shared cards available for ${email}`);
         return;
-    }
-
-    if (console.card && typeof console.card.setTotal === 'function') {
-        console.card.setTotal(cardLines.length);
     }
 
     const addCard = require(path.join(__dirname, '..', 'api', 'addCard.js'));
@@ -191,11 +182,17 @@ async function runBusinessCardFlow(page, email) {
 
     await returnToWallet(page);
 
-    for (let cardIndex = 0; cardIndex < cardLines.length; cardIndex++) {
-        const card = normalizeCardLine(cardLines[cardIndex]);
+    while (true) {
+        if (!page || page.isClosed()) {
+            console.app(`Page closed for ${email}, stop claiming shared cards`);
+            break;
+        }
+
+        const card = sharedCardQueue.claimNextCard(email);
         if (!card) {
-            console.log(`Skipping invalid card line ${cardIndex + 1}: ${cardLines[cardIndex]}`);
-            continue;
+            console.log(`No more shared cards for ${email}`);
+            console.app(`No more shared cards for ${email}`);
+            break;
         }
 
         const form = {
@@ -206,8 +203,8 @@ async function runBusinessCardFlow(page, email) {
             cvc: card.cvc
         };
 
-        console.log(`Business card ${cardIndex + 1}/${cardLines.length} ***${card.number.slice(-4)} for ${email}`);
-        console.app(`Business card ${cardIndex + 1}/${cardLines.length} ***${card.number.slice(-4)} for ${email}`);
+        console.log(`Business shared card ***${card.number.slice(-4)} for ${email}`);
+        console.app(`Business shared card ***${card.number.slice(-4)} for ${email}`);
 
         const res = await addCard(page, form);
         if (res.success) {
@@ -221,6 +218,12 @@ async function runBusinessCardFlow(page, email) {
             appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
             console.log(`DIE business card ***${card.number.slice(-4)} for ${email}${reason}`);
             console.app(`DIE business card ***${card.number.slice(-4)} for ${email}${reason}`);
+
+            const fatalReason = `${res.step || ''} ${res.error || ''}`.toLowerCase();
+            if (fatalReason.includes('page_closed') || fatalReason.includes('detached frame') || fatalReason.includes('session closed')) {
+                console.app(`Fatal page/frame error for ${email}, stop claiming shared cards`);
+                break;
+            }
         }
 
         await returnToWallet(page);
@@ -335,11 +338,31 @@ function addBusinessAccount(email) {
  * Main function to start business login process
  */
 async function updateBusiness() {
+    // ✅ RESET STATE FOR NEW RUN
+    currentAccountIndex = 0;
+    currentProxyIndex = 0;
+    
+    // ✅ Use numChrome from UI config, fallback to proxy count, minimum 1
+    maxConcurrentWindows = (global.uiConfig && global.uiConfig.numChrome) 
+        ? global.uiConfig.numChrome 
+        : Math.max(proxies.length, 1);
+    
     // ✅ RESET WINDOW POSITIONS AT START
     windowManager.reset();
     
+    console.log(`🖥️ Max concurrent Chrome: ${maxConcurrentWindows}`);
+    console.app(`🖥️ Max concurrent Chrome: ${maxConcurrentWindows}`);
     console.app("🚀 Starting Business Account Registration Process...");
     console.log("🚀 Starting Business Account Registration Process...");
+
+    const startupCardPath = path.join(__dirname, '..', 'data', 'card.txt');
+    const startupCardLines = fs.existsSync(startupCardPath)
+        ? fs.readFileSync(startupCardPath, 'utf8').replace(/\r/g, '').split('\n').map(v => v.trim()).filter(Boolean)
+        : [];
+    sharedCardQueue.initialize(startupCardLines, true);
+    if (console.card && typeof console.card.setTotal === 'function') {
+        console.card.setTotal(startupCardLines.length);
+    }
 
     // ⭐ FILTER OUT ALREADY BUSINESS ACCOUNTS
     const businessAccounts = loadBusinessAccounts();
@@ -452,10 +475,29 @@ async function processAccount(accountLine, batchIndex) {
 
         // ✅ GET POSITION FROM WINDOW MANAGER
         const windowPosition = windowManager.getNextPosition();
+        const userDataDir = path.join(__dirname, '..', 'data', 'chrome-profiles', `business-${Date.now()}-${batchIndex}-${Math.random().toString(16).slice(2)}`);
+        const defaultProfileDir = path.join(userDataDir, 'Default');
+        fs.mkdirSync(defaultProfileDir, { recursive: true });
+        fs.writeFileSync(path.join(defaultProfileDir, 'Preferences'), JSON.stringify({
+            credentials_enable_service: false,
+            profile: {
+                password_manager_enabled: false,
+                password_manager_leak_detection: false
+            },
+            autofill: {
+                profile_enabled: false,
+                credit_card_enabled: false,
+                credit_card_fido_auth_enabled: false
+            },
+            payments: {
+                can_make_payment_enabled: false
+            }
+        }, null, 2), 'utf8');
 
         // Launch browser with positioned window
         const launchOptions = {
             headless: !global.data.settings.showBrowser,
+            userDataDir,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -471,6 +513,12 @@ async function processAccount(accountLine, batchIndex) {
                 '--disable-save-password-bubble',
                 '--disable-autofill-keyboard-accessory-view',
                 '--disable-autofill-keyboard-accessory',
+                '--disable-autofill-type-predictions',
+                '--disable-features=AutofillServerCommunication,AutofillEnableAccountWalletStorage,PasswordManagerOnboarding,PasswordManagerSettingsMigration',
+                '--disable-password-generation',
+                '--disable-password-manager-reauthentication',
+                '--password-store=basic',
+                '--use-mock-keychain',
                 '--disable-translate'
             ],
             ignoreDefaultArgs: ['--enable-automation']
