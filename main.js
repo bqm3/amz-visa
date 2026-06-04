@@ -1,9 +1,7 @@
-const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
-const puppeteer = require('puppeteer');
-const { QMainWindow, QWidget, QLabel, QLineEdit, QPushButton, QTextEdit, 
-        QCheckBox, QBoxLayout, QApplication, QIcon } = require("@nodegui/nodegui");
+const { QMainWindow, QWidget, QApplication, QIcon } = require("@nodegui/nodegui");
+const { ensureLicense } = require('./src/util/licenseManager');
+const createLicenseDialog = require('./src/ui/licenseDialog');
 
 function setupTimestampedLogging() {
   let lastTs = Date.now();
@@ -65,26 +63,37 @@ global.data.settings = {
 };
 global.data.browser = {};
 
-// Initialize application
-const app = QApplication.instance();
-app.setQuitOnLastWindowClosed(true);
-const win = new QMainWindow();
-win.setWindowTitle("AmzUS Application");
-win.resize(900, 700);
+async function bootstrap() {
+  const app = QApplication.instance();
+  app.setQuitOnLastWindowClosed(true);
 
-// Set application icon
-const appIcon = new QIcon(path.join(__dirname, "src", "assets", "app-icon.png"));
-win.setWindowIcon(appIcon);
+  const storedLicense = await ensureLicense();
+  if (!storedLicense) {
+    const licensePromise = createLicenseDialog();
+    const activated = await licensePromise;
+    if (!activated) {
+      process.exit(1);
+      return;
+    }
+  }
 
-// Create main widget with black background
-const centralWidget = new QWidget();
+  const win = new QMainWindow();
+  win.setWindowTitle("AmzUS Application");
+  win.resize(900, 700);
 
-require(path.join(__dirname, "src", "index.js"))(centralWidget);
+  const appIcon = new QIcon(path.join(__dirname, "src", "assets", "app-icon.png"));
+  win.setWindowIcon(appIcon);
 
-// Set the central widget and show
-win.setCentralWidget(centralWidget);
-win.show();
+  const centralWidget = new QWidget();
+  require(path.join(__dirname, "src", "index.js"))(centralWidget);
 
-// Start the event loop
-global.win = win;
-// app.exec();
+  win.setCentralWidget(centralWidget);
+  win.show();
+
+  global.win = win;
+}
+
+bootstrap().catch((error) => {
+  console.error("Application bootstrap failed:", error);
+  process.exit(1);
+});

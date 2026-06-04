@@ -1,0 +1,4 @@
+License server running on http://127.0.0.1:8787
+Admin token: dev-admin-token
+Public key saved to: D:\Apollo\Freelancer\amz-visa\license-server\keys\public.pem
+Codes file: D:\Apollo\Freelancer\amz-visa\license-server\data\codes.json

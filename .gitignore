@@ -191,3 +191,7 @@ coverage/
 *.temp
 
 src/data/chrome-profiles
+
+# License server local data
+license-server/data/
+license-server/keys/private.pem
