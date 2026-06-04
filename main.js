@@ -31,7 +31,12 @@ loadDotEnvFile(path.join(__dirname, '.env'));
 loadDotEnvFile(path.join(__dirname, '.env.local'));
 
 const { QMainWindow, QWidget, QApplication, QIcon } = require("@nodegui/nodegui");
-const { ensureLicense } = require('./src/util/licenseManager');
+const {
+  activateLicense,
+  decodePayload,
+  ensureLicense,
+  readStoredLicense
+} = require('./src/util/licenseManager');
 const createLicenseDialog = require('./src/ui/licenseDialog');
 
 function setupTimestampedLogging() {
@@ -99,6 +104,7 @@ async function bootstrap() {
   app.setQuitOnLastWindowClosed(true);
 
   const storedLicense = await ensureLicense();
+  let activeLicense = storedLicense || null;
   if (!storedLicense) {
     const licensePromise = createLicenseDialog();
     const activated = await licensePromise;
@@ -106,6 +112,7 @@ async function bootstrap() {
       process.exit(1);
       return;
     }
+    activeLicense = activated;
   }
 
   const win = new QMainWindow();
@@ -120,6 +127,106 @@ async function bootstrap() {
 
   win.setCentralWidget(centralWidget);
   win.show();
+
+  let currentLicensePayload = activeLicense;
+  let renewalInProgress = false;
+  let licenseDialogOpen = false;
+
+  const scheduleLicenseTimers = (licensePayload) => {
+    const expiresAt = Number(licensePayload?.expiresAt || 0);
+    const codeId = String(licensePayload?.codeId || '').trim();
+    if (!expiresAt || !codeId) return;
+
+    if (global.__amzLicenseExpiryTimer) {
+      clearTimeout(global.__amzLicenseExpiryTimer);
+    }
+    if (global.__amzLicenseHeartbeatTimer) {
+      clearInterval(global.__amzLicenseHeartbeatTimer);
+    }
+
+    const armExpiryTimer = () => {
+      const remaining = expiresAt - Date.now();
+      if (remaining <= 0) {
+        void promptLicenseRenewal();
+        return;
+      }
+
+      global.__amzLicenseExpiryTimer = setTimeout(() => {
+        void promptLicenseRenewal();
+      }, remaining);
+    };
+
+    const refreshFromServer = async () => {
+      try {
+        const refreshed = await activateLicense(codeId);
+        if (refreshed?.expiresAt) {
+          licensePayload.expiresAt = refreshed.expiresAt;
+          currentLicensePayload = {
+            ...currentLicensePayload,
+            expiresAt: refreshed.expiresAt
+          };
+        }
+        armExpiryTimer();
+      } catch (error) {
+        if (/License da het han/i.test(error.message || '')) {
+          void promptLicenseRenewal();
+          return;
+        }
+        console.error(`License heartbeat failed: ${error.message}`);
+      }
+    };
+
+    armExpiryTimer();
+    global.__amzLicenseHeartbeatTimer = setInterval(refreshFromServer, 60 * 1000);
+    global.__amzLicenseRefreshNow = refreshFromServer;
+  };
+
+  const promptLicenseRenewal = async () => {
+    if (renewalInProgress || licenseDialogOpen) return;
+
+    renewalInProgress = true;
+    licenseDialogOpen = true;
+    try {
+      if (win && typeof win.hide === 'function') {
+        win.hide();
+      }
+      if (global.__amzLicenseExpiryTimer) {
+        clearTimeout(global.__amzLicenseExpiryTimer);
+        global.__amzLicenseExpiryTimer = null;
+      }
+      if (global.__amzLicenseHeartbeatTimer) {
+        clearInterval(global.__amzLicenseHeartbeatTimer);
+        global.__amzLicenseHeartbeatTimer = null;
+      }
+
+      const renewedLicense = await createLicenseDialog();
+      if (!renewedLicense) {
+        process.exit(1);
+        return;
+      }
+
+      currentLicensePayload = renewedLicense;
+      scheduleLicenseTimers(renewedLicense);
+      if (win && typeof win.show === 'function') {
+        win.show();
+        if (typeof win.raise === 'function') {
+          win.raise();
+        }
+        if (typeof win.activateWindow === 'function') {
+          win.activateWindow();
+        }
+      }
+    } finally {
+      licenseDialogOpen = false;
+      renewalInProgress = false;
+    }
+  };
+
+  const activeBundle = readStoredLicense();
+  const activePayload = decodePayload(activeBundle) || currentLicensePayload;
+  if (activePayload) {
+    scheduleLicenseTimers(activePayload);
+  }
 
   global.win = win;
 }

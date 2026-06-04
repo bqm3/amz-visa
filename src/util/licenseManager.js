@@ -215,6 +215,10 @@ async function activateLicense(code) {
       throw new Error(`Ma nay chi dung cho may khac${boundMachineId}`);
     }
 
+    if (status === 410 && data?.error === 'LICENSE_EXPIRED') {
+      throw new Error('License da het han.');
+    }
+
     if (status === 500 && data?.message === 'LICENSE_PRIVATE_KEY_PEM_INVALID_FORMAT') {
       throw new Error('Khong dung dinh dang LICENSE_PRIVATE_KEY_PEM. Hay dán private key PEM that, khong phai public key hay chuoi da escape.');
     }
@@ -245,6 +249,15 @@ async function ensureLicense() {
       return validation.payload;
     }
 
+    try {
+      const payload = decodePayload(stored);
+      if (payload?.codeId) {
+        return await activateLicense(payload.codeId);
+      }
+    } catch (error) {
+      console.log(`License refresh failed: ${error.message}`);
+    }
+
     clearStoredLicense();
   }
 
@@ -264,6 +277,20 @@ async function validateStoredLicenseAsync(bundle) {
   return validateStoredLicenseWithKey(bundle, publicKeyPem);
 }
 
+async function refreshStoredLicenseFromServer() {
+  const stored = readStoredLicense();
+  if (!stored) return null;
+
+  const payload = decodePayload(stored);
+  if (!payload?.codeId) return null;
+
+  try {
+    return await activateLicense(payload.codeId);
+  } catch (error) {
+    return null;
+  }
+}
+
 module.exports = {
   APP_ID,
   activateLicense,
@@ -276,6 +303,7 @@ module.exports = {
   getLicenseServerUrl,
   fetchPublicKeyPem,
   readStoredLicense,
+  refreshStoredLicenseFromServer,
   saveStoredLicense,
   validateStoredLicense,
   validateStoredLicenseWithKey,
