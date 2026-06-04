@@ -197,7 +197,10 @@ async function detectAccountStatus(page) {
         
         if (url.includes('account-status.amazon.com') ||
             content.includes('Account on hold') ||
-            content.includes('Your account is currently under review')) {
+            content.includes('Your account is currently under review') ||
+            content.includes('Billing verification required') ||
+            content.includes('your orders are on hold') ||
+            content.includes('verify your billing information')) {
             return 'ACCOUNT_LOCKED';
         }
         
