@@ -156,6 +156,14 @@ function markLockedAccount(email, reason = 'ACCOUNT_LOCKED') {
     }
 }
 
+async function stopIfLocked(page, email, context = '') {
+    if (!(await isAccountLockedPage(page))) return false;
+
+    markLockedAccount(email, 'ACCOUNT_LOCKED');
+    console.app(`Account locked detected${context ? ` ${context}` : ''}: ${email}`);
+    return true;
+}
+
 function loadLockedAccountEmails() {
     const locked = new Set();
     const dataPath = path.join(__dirname, '..', 'data', 'data.json');
@@ -186,6 +194,10 @@ async function clickStartBrowsingIfPresent(page, email) {
     const started = Date.now();
     while (Date.now() - started < 15000) {
         try {
+            if (await stopIfLocked(page, email, 'before start browsing')) {
+                throw new Error('ACCOUNT_LOCKED');
+            }
+
             const clicked = await page.evaluate(() => {
                 const isVisible = (el) => {
                     if (!el || el.disabled) return false;
@@ -221,7 +233,9 @@ async function clickStartBrowsingIfPresent(page, email) {
                 ]);
                 return true;
             }
-        } catch (_) {}
+        } catch (error) {
+            if (String(error.message || '').includes('ACCOUNT_LOCKED')) throw error;
+        }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
@@ -244,6 +258,10 @@ async function returnToWallet(page) {
 }
 
 async function runBusinessCardFlow(page, email) {
+    if (await stopIfLocked(page, email, 'before card flow')) {
+        return;
+    }
+
     if (sharedCardQueue.remainingCount() === 0) {
         console.log(`No shared cards available for ${email}`);
         console.app(`No shared cards available for ${email}`);
@@ -480,46 +498,44 @@ async function updateBusiness() {
     }
 
     // Process remaining accounts
-    while (currentAccountIndex < accountsToProcess.length) {
-        const batch = [];
-        
-        for (let i = 0; i < maxConcurrentWindows && currentAccountIndex < accountsToProcess.length; i++) {
-            batch.push({
-                account: accountsToProcess[currentAccountIndex],
-                index: currentAccountIndex
-            });
-            currentAccountIndex++;
-        }
+    const workerCount = Math.min(maxConcurrentWindows, accountsToProcess.length);
+    console.log(`\nStarting ${workerCount} worker(s) for ${accountsToProcess.length} account(s)`);
+    console.app(`Starting ${workerCount} worker(s) for ${accountsToProcess.length} account(s)`);
 
-        console.log(`\n🔄 Processing batch: ${batch.length} accounts`);
-        console.app(`🔄 Processing batch: ${batch.length} accounts`);
+    const workers = Array.from({ length: workerCount }, (_, workerIndex) =>
+        processBusinessWorker(workerIndex + 1, accountsToProcess)
+    );
 
-        await processBatch(batch);
+    await Promise.allSettled(workers);
 
-        if (currentAccountIndex < accountsToProcess.length) {
-            const delayMs = Math.max(500, 2000 - (proxies.length * 100));
-            console.log(`⏳ Waiting ${delayMs}ms before next batch...`);
-            console.app(`⏳ Waiting ${delayMs}ms before next batch...`);
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-    }
-
-    console.log("✅ All business logins completed!");
-    console.app("✅ All business logins completed!");
+    console.log("All business logins completed!");
+    console.app("All business logins completed!");
 }
 
 /**
- * Process a batch of accounts concurrently (equal to proxy count)
+ * Process accounts dynamically. When a browser/account finishes, this worker
+ * immediately takes the next account instead of waiting for a whole batch.
  */
-async function processBatch(accounts) {
-    const promises = accounts.map(({ account, index }) => 
-        processAccount(account, index).catch(error => {
-            console.error(`❌ Error processing account ${account.split('|')[0]}:`, error.message);
-            console.app(`❌ Error processing account ${account.split('|')[0]}: ${error.message}`);
-        })
-    );
-    
-    await Promise.allSettled(promises);
+async function processBusinessWorker(workerId, accountsToProcess) {
+    while (currentAccountIndex < accountsToProcess.length) {
+        const accountIndex = currentAccountIndex++;
+        const account = accountsToProcess[accountIndex];
+        const email = account.split('|')[0];
+
+        console.app(`Worker ${workerId}: starting account ${accountIndex + 1}/${accountsToProcess.length}: ${email}`);
+
+        try {
+            await processAccount(account, accountIndex);
+        } catch (error) {
+            console.error(`Worker ${workerId} error processing account ${email}:`, error.message);
+            console.app(`Worker ${workerId} error processing account ${email}: ${error.message}`);
+        }
+
+        if (currentAccountIndex < accountsToProcess.length) {
+            const delayMs = Math.max(500, 2000 - (proxies.length * 100));
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
 }
 
 /**
@@ -694,12 +710,20 @@ async function processAccount(accountLine, batchIndex) {
                         break;
                     }
                 }
+
+                if (await stopIfLocked(page, email, 'after switching business account')) {
+                    return;
+                }
             } catch (error) {
                 console.error(`❌ [${batchIndex + 1}] Error selecting business account: ${error.message}`);
                 console.app(`❌ [${batchIndex + 1}] Error selecting business account: ${error.message}`);
             }
             try {
                 console.log(`🔍 [${batchIndex + 1}] Looking for Complete registration button`);
+                if (await stopIfLocked(page, email, 'before business registration check')) {
+                    return;
+                }
+
                 // Check if "Complete registration" button exists
                 const completeRegButton = await page.evaluate(() => {
                     const elements = [
@@ -723,7 +747,15 @@ async function processAccount(accountLine, batchIndex) {
                         )
                     ]);
                     console.log(`✓ [${batchIndex + 1}] Clicked Complete registration button`);
+
+                    if (await stopIfLocked(page, email, 'after complete registration click')) {
+                        return;
+                    }
                 } else {
+                    if (await stopIfLocked(page, email, 'before already-selected card flow')) {
+                        return;
+                    }
+
                     console.log(`Business account already selected for ${email}, continuing to card flow`);
                     console.app(`Business account already selected for ${email}, continuing to card flow`);
                     addBusinessAccount(email);
@@ -739,6 +771,10 @@ async function processAccount(accountLine, batchIndex) {
             await new Promise(resolve => setTimeout(resolve, 2000));
             await require(path.join(__dirname, "..", "api", "business", "fillInfo.js")).fillInfo(page, loginForm);
             await require(path.join(__dirname, "..", "api", "business", "fillInfo.js")).finalSetup(page, loginForm);
+        }
+
+        if (await stopIfLocked(page, email, 'after business setup')) {
+            return;
         }
 
         console.log(`✅ [${batchIndex + 1}] Business account setup completed for: ${email}`);
