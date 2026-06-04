@@ -1,4 +1,4 @@
-const { QDialog, QBoxLayout, QLabel, QLineEdit, QTextEdit, QPushButton } = require('@nodegui/nodegui');
+const { QDialog, QBoxLayout, QLabel, QLineEdit, QTextEdit, QPushButton, QApplication } = require('@nodegui/nodegui');
 const { activateLicense, getMachineFingerprint, getLicenseServerUrl } = require('../util/licenseManager');
 
 function createLicenseDialog() {
@@ -13,20 +13,30 @@ function createLicenseDialog() {
 
   const title = new QLabel();
   title.setText('Nhap ma kich hoat');
-  title.setStyleSheet('font-size: 18px; font-weight: bold; color: #cdd6f4;');
+  title.setStyleSheet('font-size: 18px; font-weight: bold; color: #000;');
 
   const hint = new QLabel();
   hint.setText('Ma chi dung 1 lan va se duoc gan vao dung may nay.');
-  hint.setStyleSheet('color: #94e2d5;');
+  hint.setStyleSheet('color: #000;');
 
   const machineLabel = new QLabel();
-  machineLabel.setText(`Machine ID: ${getMachineFingerprint().slice(0, 16)}...`);
-  machineLabel.setStyleSheet('color: #fab387; font-size: 11px;');
+  const machineId = getMachineFingerprint();
+  machineLabel.setText(`Machine ID: ${machineId}`);
+  machineLabel.setStyleSheet('color: #000; font-size: 11px;');
+
+  const copyMachineButton = new QPushButton();
+  copyMachineButton.setText('Copy Machine ID');
+  copyMachineButton.setStyleSheet('background-color: #45475a; color: #000;');
 
   const serverLabel = new QLabel();
   const serverUrl = getLicenseServerUrl();
   serverLabel.setText(serverUrl ? `License server: ${serverUrl}` : 'License server: chua cau hinh');
-  serverLabel.setStyleSheet('color: #a6e3a1; font-size: 11px;');
+  serverLabel.setStyleSheet('color: #000; font-size: 11px;');
+
+  const machineRow = new QBoxLayout(0);
+  machineRow.setSpacing(10);
+  machineRow.addWidget(machineLabel, 1);
+  machineRow.addWidget(copyMachineButton);
 
   const codeInput = new QLineEdit();
   codeInput.setPlaceholderText('Vi du: 123Abc');
@@ -54,7 +64,7 @@ function createLicenseDialog() {
 
   layout.addWidget(title);
   layout.addWidget(hint);
-  layout.addWidget(machineLabel);
+  layout.addLayout(machineRow);
   layout.addWidget(serverLabel);
   layout.addWidget(codeInput);
   layout.addWidget(status, 1);
@@ -93,6 +103,20 @@ function createLicenseDialog() {
       status.setText(`Khong kich hoat duoc: ${error.message}`);
       activateButton.setEnabled(true);
       closeButton.setEnabled(true);
+    }
+  });
+
+  copyMachineButton.addEventListener('clicked', () => {
+    try {
+      const clipboard = QApplication.clipboard();
+      if (clipboard) {
+        clipboard.setText(machineId);
+        status.setText('Da copy Machine ID vao clipboard.');
+      } else {
+        status.setText('Khong mo duoc clipboard.');
+      }
+    } catch (error) {
+      status.setText(`Copy machine ID that bai: ${error.message}`);
     }
   });
 

@@ -53,26 +53,34 @@ function getLicenseServerUrl() {
   ).trim().replace(/\/+$/, '');
 }
 
+function normalizeServerBaseUrl(input) {
+  const raw = String(input || '').trim().replace(/\/+$/, '');
+  return raw.replace(/\/api$/, '');
+}
+
 function buildApiUrl(serverUrl, endpoint) {
-  const base = String(serverUrl || '').trim().replace(/\/+$/, '');
+  const base = normalizeServerBaseUrl(serverUrl);
   const cleanEndpoint = String(endpoint || '').replace(/^\/+/, '');
   return `${base}/api/${cleanEndpoint}`;
 }
 
-function getPublicKeyPem() {
-  return '';
-}
-
 async function fetchPublicKeyPem(serverUrl) {
-  const baseUrl = String(serverUrl || getLicenseServerUrl()).trim().replace(/\/+$/, '');
+  const baseUrl = normalizeServerBaseUrl(serverUrl || getLicenseServerUrl());
   if (!baseUrl) return '';
 
   try {
-    const response = await axios.get(buildApiUrl(baseUrl, 'public-key'), { timeout: 15000 });
+    const url = buildApiUrl(baseUrl, 'public-key');
+    const response = await axios.get(url, { timeout: 15000 });
     const body = response.data || {};
     const key = String(body.publicKey || body.key || '').trim();
     return key;
   } catch (error) {
+    console.error('fetchPublicKeyPem failed:', {
+      url: buildApiUrl(baseUrl, 'public-key'),
+      message: error?.message || String(error),
+      status: error?.response?.status,
+      data: error?.response?.data
+    });
     return '';
   }
 }
@@ -167,8 +175,7 @@ function validateStoredLicenseWithKey(bundle, publicKeyPem) {
 }
 
 function validateStoredLicense(bundle) {
-  const publicKeyPem = getPublicKeyPem();
-  return validateStoredLicenseWithKey(bundle, publicKeyPem);
+  return { valid: false, reason: 'USE_API_PUBLIC_KEY' };
 }
 
 async function activateLicense(code) {
@@ -177,24 +184,47 @@ async function activateLicense(code) {
     throw new Error('Chua cau hinh AMZ_LICENSE_SERVER_URL.');
   }
 
-  let publicKeyPem = getPublicKeyPem();
+  const publicKeyPem = await fetchPublicKeyPem(serverUrl);
   if (!publicKeyPem) {
-    publicKeyPem = await fetchPublicKeyPem(serverUrl);
-  }
-  if (!publicKeyPem) {
-    throw new Error('Khong lay duoc public key license tu server.');
+    throw new Error(`Khong lay duoc public key license tu server: ${buildApiUrl(serverUrl, 'public-key')}`);
   }
 
   const machineId = getMachineFingerprint();
-  const response = await axios.post(buildApiUrl(serverUrl, 'activate'), {
-    appId: APP_ID,
-    code,
-    machineId,
-    hostname: os.hostname(),
-    platform: os.platform()
-  }, {
-    timeout: 15000
-  });
+  let response;
+  try {
+    response = await axios.post(buildApiUrl(serverUrl, 'activate'), {
+      appId: APP_ID,
+      code,
+      machineId,
+      hostname: os.hostname(),
+      platform: os.platform()
+    }, {
+      timeout: 15000
+    });
+  } catch (error) {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    const serverMessage = data?.message || data?.error || error?.message || 'Unknown error';
+
+    if (status === 409 && data?.error === 'CODE_ALREADY_USED') {
+      throw new Error(`Ma nay da duoc su dung roi`);
+    }
+
+    if (status === 400 && data?.error === 'CODE_MACHINE_MISMATCH') {
+      const boundMachineId = data?.boundMachineId ? `; boundMachineId=${data.boundMachineId}` : '';
+      throw new Error(`Ma nay chi dung cho may khac${boundMachineId}`);
+    }
+
+    if (status === 500 && data?.message === 'LICENSE_PRIVATE_KEY_PEM_INVALID_FORMAT') {
+      throw new Error('Khong dung dinh dang LICENSE_PRIVATE_KEY_PEM. Hay dán private key PEM that, khong phai public key hay chuoi da escape.');
+    }
+
+    if (status === 409 && data?.error === 'ACTIVATION_CONFLICT') {
+      throw new Error('Kich hoat dang xay ra xung dot, vui long thu lai.');
+    }
+
+    throw new Error(`Activate failed${status ? ` (${status})` : ''}: ${serverMessage}`);
+  }
 
   const bundle = response.data && (response.data.license || response.data.bundle || response.data);
   const validation = validateStoredLicenseWithKey(bundle, publicKeyPem);
@@ -222,7 +252,12 @@ async function ensureLicense() {
 }
 
 async function validateStoredLicenseAsync(bundle) {
-  const publicKeyPem = getPublicKeyPem() || await fetchPublicKeyPem();
+  const serverUrl = getLicenseServerUrl();
+  if (!serverUrl) {
+    return { valid: false, reason: 'SERVER_URL_MISSING' };
+  }
+
+  const publicKeyPem = await fetchPublicKeyPem(serverUrl);
   if (!publicKeyPem) {
     return { valid: false, reason: 'PUBLIC_KEY_MISSING' };
   }
@@ -239,7 +274,6 @@ module.exports = {
   getLicensePath,
   getMachineFingerprint,
   getLicenseServerUrl,
-  getPublicKeyPem,
   fetchPublicKeyPem,
   readStoredLicense,
   saveStoredLicense,

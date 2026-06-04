@@ -1,4 +1,35 @@
+const fs = require('fs');
 const path = require('path');
+
+function loadDotEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+
+  const content = fs.readFileSync(filePath, 'utf8');
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+
+    const eqIndex = line.indexOf('=');
+    if (eqIndex === -1) continue;
+
+    const key = line.slice(0, eqIndex).trim();
+    if (!key || process.env[key] !== undefined) continue;
+
+    let value = line.slice(eqIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    process.env[key] = value;
+  }
+}
+
+loadDotEnvFile(path.join(__dirname, '.env'));
+loadDotEnvFile(path.join(__dirname, '.env.local'));
+
 const { QMainWindow, QWidget, QApplication, QIcon } = require("@nodegui/nodegui");
 const { ensureLicense } = require('./src/util/licenseManager');
 const createLicenseDialog = require('./src/ui/licenseDialog');
