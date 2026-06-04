@@ -131,6 +131,7 @@ async function bootstrap() {
   let currentLicensePayload = activeLicense;
   let renewalInProgress = false;
   let licenseDialogOpen = false;
+  const MAX_TIMER_DELAY_MS = 0x7fffffff;
 
   const scheduleLicenseTimers = (licensePayload) => {
     const expiresAt = Number(licensePayload?.expiresAt || 0);
@@ -151,9 +152,10 @@ async function bootstrap() {
         return;
       }
 
+      const delay = Math.min(remaining, MAX_TIMER_DELAY_MS);
       global.__amzLicenseExpiryTimer = setTimeout(() => {
-        void promptLicenseRenewal();
-      }, remaining);
+        armExpiryTimer();
+      }, delay);
     };
 
     const refreshFromServer = async () => {
