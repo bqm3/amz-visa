@@ -47,7 +47,7 @@ function getMachineFingerprint() {
 
 function getLicenseServerUrl() {
   return String(
-    process.env.AMZ_LICENSE_SERVER_URL ||
+    'https://lisense-server.vercel.app' ||
       process.env.LICENSE_SERVER_URL ||
       ''
   ).trim().replace(/\/+$/, '');
