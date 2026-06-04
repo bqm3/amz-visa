@@ -586,17 +586,21 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
         linkNow = page.url();
     }
 
-    // Check address book
-    try {
-        await require(path.join(__dirname, "..", "api", "addAddress.js")).gotoBook(page);
-        if (!(await require(path.join(__dirname, "..", "api", "addAddress.js")).checkBook(page))) {
-            await require(path.join(__dirname, "..", "api", "addAddress.js")).addAddress(page);
-        }
+    if (global.data.settings.addAddress) {
+        // Check address book
         try {
-            await page.goto(linkNow, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        } catch (navError) {}
-    } catch (addressError) {
-        console.app(`⚠️ Chrome ${chromeIndex + 1}: Address error for ${email}`);
+            await require(path.join(__dirname, "..", "api", "addAddress.js")).gotoBook(page);
+            if (!(await require(path.join(__dirname, "..", "api", "addAddress.js")).checkBook(page))) {
+                await require(path.join(__dirname, "..", "api", "addAddress.js")).addAddress(page);
+            }
+            try {
+                await page.goto(linkNow, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            } catch (navError) {}
+        } catch (addressError) {
+            console.app(`Chrome ${chromeIndex + 1}: Address error for ${email}`);
+        }
+    } else {
+        console.app(`Chrome ${chromeIndex + 1}: Skip address for ${email}`);
     }
 
     let res = await require(path.join(__dirname, "..", "api", "goPayment.js"))(page);

@@ -234,6 +234,11 @@ async function runBusinessCardFlow(page, email) {
 }
 
 async function runBusinessAddressFlow(page, email) {
+    if (!global.data.settings.addAddress) {
+        console.app(`Skip business address for ${email}`);
+        return;
+    }
+
     try {
         await page.goto('https://www.amazon.com/a/addresses?ref_=ya_d_c_addr', {
             waitUntil: 'domcontentloaded',

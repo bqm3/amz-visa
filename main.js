@@ -60,7 +60,8 @@ global.data = {};
 global.data.parentAcc = []; // hoặc {}
 global.data.settings = {
   debug: false,
-  showBrowser: true
+  showBrowser: true,
+  addAddress: false
 };
 global.data.browser = {};
 

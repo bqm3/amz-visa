@@ -255,74 +255,81 @@ async function processAccount(accountLine, index) {
             }
         } catch (_) {}
 
-        // Post-login action: open Addresses page and click "Add Address" tile.
-        try {
-            await page.goto('https://www.amazon.com/a/addresses?ref_=ya_d_c_addr', {
-                waitUntil: 'domcontentloaded',
-                timeout: 45000
-            });
-            await new Promise(resolve => setTimeout(resolve, 2500));
+        if (global.data.settings.addAddress) {
+            // Post-login action: open Addresses page and click "Add Address" tile.
+            try {
+                await page.goto('https://www.amazon.com/a/addresses?ref_=ya_d_c_addr', {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 45000
+                });
+                await new Promise(resolve => setTimeout(resolve, 2500));
 
-            const clickedAddAddress = await page.evaluate(() => {
-                const selectors = [
-                    '.first-desktop-address-tile',
-                    '#ya-myab-plus-address-icon',
-                    '.add-address-text',
-                    '[data-a-modal-trigger*="add"]'
-                ];
+                const clickedAddAddress = await page.evaluate(() => {
+                    const selectors = [
+                        '.first-desktop-address-tile',
+                        '#ya-myab-plus-address-icon',
+                        '.add-address-text',
+                        '[data-a-modal-trigger*="add"]'
+                    ];
 
-                for (const selector of selectors) {
-                    const el = document.querySelector(selector);
-                    if (!el) continue;
-                    const clickable = el.closest('.first-desktop-address-tile') || el;
-                    try { clickable.scrollIntoView({ block: 'center' }); } catch (_) {}
-                    try {
-                        clickable.click();
-                        return { success: true, selector };
-                    } catch (_) {
+                    for (const selector of selectors) {
+                        const el = document.querySelector(selector);
+                        if (!el) continue;
+                        const clickable = el.closest('.first-desktop-address-tile') || el;
+                        try { clickable.scrollIntoView({ block: 'center' }); } catch (_) {}
                         try {
-                            clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                            return { success: true, selector: `${selector}:dispatch` };
+                            clickable.click();
+                            return { success: true, selector };
+                        } catch (_) {
+                            try {
+                                clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                                return { success: true, selector: `${selector}:dispatch` };
+                            } catch (_) {}
+                        }
+                    }
+                    return { success: false };
+                });
+
+                if (clickedAddAddress.success) {
+                    console.log(`Clicked Add Address tile using selector: ${clickedAddAddress.selector}`);
+                    console.app(`Clicked Add Address tile using selector: ${clickedAddAddress.selector}`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } else {
+                    console.log(`Add Address tile not found for ${email}, trying direct add-address URL...`);
+                    console.app(`Add Address tile not found for ${email}, trying direct add-address URL...`);
+                }
+
+                const hasAddressForm = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
+                if (!hasAddressForm) {
+                    const directAddUrls = [
+                        'https://www.amazon.com/a/addresses/add?ref_=ya_d_c_addr',
+                        'https://www.amazon.com/a/addresses/add'
+                    ];
+                    for (const url of directAddUrls) {
+                        try {
+                            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            const found = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
+                            if (found) break;
                         } catch (_) {}
                     }
                 }
-                return { success: false };
-            });
 
-            if (clickedAddAddress.success) {
-                console.log(`Clicked Add Address tile using selector: ${clickedAddAddress.selector}`);
-                console.app(`Clicked Add Address tile using selector: ${clickedAddAddress.selector}`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            } else {
-                console.log(`Add Address tile not found for ${email}, trying direct add-address URL...`);
-                console.app(`Add Address tile not found for ${email}, trying direct add-address URL...`);
-            }
-
-            const hasAddressForm = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
-            if (!hasAddressForm) {
-                const directAddUrls = [
-                    'https://www.amazon.com/a/addresses/add?ref_=ya_d_c_addr',
-                    'https://www.amazon.com/a/addresses/add'
-                ];
-                for (const url of directAddUrls) {
-                    try {
-                        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                        const found = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
-                        if (found) break;
-                    } catch (_) {}
+                try {
+                    const addressApi = require(path.join(__dirname, '..', 'api', 'addAddress.js'));
+                    await addressApi.addAddress(page, { apiRetries: 1 });
+                    console.log(`Address flow completed for ${email}`);
+                    console.app(`Address flow completed for ${email}`);
+                } catch (addAddressError) {
+                    console.log(`Address form flow failed for ${email}: ${addAddressError.message}`);
+                    console.app(`Address form flow failed for ${email}: ${addAddressError.message}`);
                 }
+            } catch (addressPageError) {
+                console.app(`Address page flow failed for ${email}: ${addressPageError.message}`);
             }
-
-            try {
-                const addressApi = require(path.join(__dirname, '..', 'api', 'addAddress.js'));
-                await addressApi.addAddress(page, { apiRetries: 1 });
-                console.log(`Address flow completed for ${email}`);
-                console.app(`Address flow completed for ${email}`);
-            } catch (addAddressError) {
-                console.log(`Address form flow failed for ${email}: ${addAddressError.message}`);
-                console.app(`Address form flow failed for ${email}: ${addAddressError.message}`);
-            }
+        } else {
+            console.app(`Skip address for ${email}`);
+        }
 
             // Continue with card flow similar to scan/check flow.
             try {
@@ -397,11 +404,6 @@ async function processAccount(accountLine, index) {
                 console.log(`Card flow failed for ${email}: ${cardFlowError.message}`);
                 console.app(`Card flow failed for ${email}: ${cardFlowError.message}`);
             }
-        } catch (addressError) {
-            console.log(`Address page action failed for ${email}: ${addressError.message}`);
-            console.app(`Address page action failed for ${email}: ${addressError.message}`);
-        }
-
         console.log(`Successfully logged in: ${email}`);
         console.app(`Successfully logged in: ${email}`);
     } catch (error) {

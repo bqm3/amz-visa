@@ -435,6 +435,12 @@ function createMainWindow(centralWidget) {
     showBrowserCheckbox.setChecked(true);
     dataFilesLayout.addWidget(showBrowserCheckbox);
 
+    const addAddressCheckbox = new QCheckBox();
+    addAddressCheckbox.setText("Add Address");
+    addAddressCheckbox.setChecked(false);
+    addAddressCheckbox.setToolTip("Checked: add address before card flow. Unchecked: skip address.");
+    dataFilesLayout.addWidget(addAddressCheckbox);
+
     // File buttons row
     const fileButtonsContainer = new QWidget();
     const fileButtonsLayout = new QBoxLayout(0); // LeftToRight
@@ -592,9 +598,13 @@ function createMainWindow(centralWidget) {
             checkAfterInput.setText("60");
         }
         global.data.settings.checkAfter = Math.max(value, 1) * 1000;
+        global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
+        global.data.settings.addAddress = addAddressCheckbox.isChecked();
         
         isProcessRunning = true;
         disableButtons(true);
+        global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
+        global.data.settings.addAddress = addAddressCheckbox.isChecked();
         
         // âœ… RESET WINDOW POSITIONS BEFORE STARTING
         windowManager.reset();
@@ -622,6 +632,8 @@ function createMainWindow(centralWidget) {
         
         isProcessRunning = true;
         disableButtons(true);
+        global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
+        global.data.settings.addAddress = addAddressCheckbox.isChecked();
         
         // âœ… RESET WINDOW POSITIONS BEFORE STARTING
         windowManager.reset();
@@ -759,12 +771,14 @@ function createMainWindow(centralWidget) {
                 source: 'file'
             };
 
-            // ✅ SAVE SETTINGS: Check after and Show Browser
+            // ✅ SAVE SETTINGS: Check after, Show Browser, and Add Address
             const checkAfterValue = parseInt(checkAfterInput.text());
             const showBrowser = showBrowserCheckbox.isChecked();
+            const addAddress = addAddressCheckbox.isChecked();
             
             global.data.settings.checkAfter = Math.max(checkAfterValue, 1) * 1000;
             global.data.settings.showBrowser = showBrowser;
+            global.data.settings.addAddress = addAddress;
 
             // Update card total in UI
             global.data.cardTotal = cards.length;
@@ -775,7 +789,7 @@ function createMainWindow(centralWidget) {
             configInfoLabel.setText(`✅ ${accounts.length} acc(s), ${cards.length} card(s), ${numChrome} Chrome`);
             configInfoLabel.setStyleSheet("color: #a6e3a1; font-size: 11px;");
             appendToTerminal(terminal.toPlainText() + `\n✅ Config applied: ${accounts.length} account(s), ${cards.length} card(s), ${numChrome} Chrome instance(s)`);
-            appendToTerminal(terminal.toPlainText() + `\n⚙️ Settings: Check after ${checkAfterValue}s, Show browser: ${showBrowser ? 'Yes' : 'No'}`);
+            appendToTerminal(terminal.toPlainText() + `\n⚙️ Settings: Check after ${checkAfterValue}s, Show browser: ${showBrowser ? 'Yes' : 'No'}, Add address: ${addAddress ? 'Yes' : 'No'}`);
 
             appendToTerminal(terminal.toPlainText() + `\n📊 Card queue: shared sequential queue, one claimed card per account turn`);
             appendToTerminal(terminal.toPlainText() + `\n🔄 Account rotation: ${accounts.length} account(s) in queue, auto-switch on lock`);
