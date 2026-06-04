@@ -107,6 +107,7 @@ coverage
 src/data/acc.txt
 src/data/card.txt
 src/data/proxies.txt
+src/data/checkcard.txt
 src/data/data.json
 src/data/parentAccount.json
 src/data/child.txt
