@@ -120,7 +120,10 @@ async function isAccountLockedPage(page) {
                 text.includes('your account has been locked') ||
                 text.includes('account has been locked') ||
                 text.includes('account on hold') ||
-                text.includes('your account is currently under review');
+                text.includes('your account is currently under review') ||
+                text.includes('billing verification required') ||
+                text.includes('your orders are on hold') ||
+                text.includes('verify your billing information');
         });
     } catch (_) {
         return false;
