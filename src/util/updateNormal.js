@@ -71,6 +71,77 @@ function appendCardResult(kind, card, email, reason = '') {
     fs.appendFileSync(path.join(dirSave, `${kind}.txt`), line + '\n', 'utf8');
 }
 
+async function isAccountLockedPage(page) {
+    try {
+        if (!page || page.isClosed()) return false;
+        const url = page.url();
+        if (url.includes('account-status.amazon.com')) return true;
+
+        return await page.evaluate(() => {
+            const text = (document.body && document.body.innerText || '').toLowerCase();
+            return text.includes('account locked temporarily') ||
+                text.includes('your account has been locked') ||
+                text.includes('account has been locked') ||
+                text.includes('account on hold') ||
+                text.includes('your account is currently under review');
+        });
+    } catch (_) {
+        return false;
+    }
+}
+
+function markLockedAccount(email, reason = 'ACCOUNT_LOCKED') {
+    const dataPath = path.join(__dirname, '..', 'data', 'data.json');
+    const lockedPath = path.join(__dirname, '..', 'data', 'locked_accounts.txt');
+
+    try {
+        let data = {};
+        if (fs.existsSync(dataPath)) {
+            data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        }
+        if (!data.lockedAccounts) data.lockedAccounts = {};
+        data.lockedAccounts[email] = { lockedAt: Date.now(), reason };
+        fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    } catch (error) {
+        console.app(`Could not save locked account to data.json: ${error.message}`);
+    }
+
+    try {
+        const existing = fs.existsSync(lockedPath) ? fs.readFileSync(lockedPath, 'utf8') : '';
+        if (!existing.includes(email)) {
+            fs.appendFileSync(lockedPath, `${new Date().toISOString()}: ${email} - ${reason} - AUTO_DETECTED\n`, 'utf8');
+        }
+    } catch (error) {
+        console.app(`Could not write locked account: ${error.message}`);
+    }
+}
+
+function loadLockedAccountEmails() {
+    const locked = new Set();
+    const dataPath = path.join(__dirname, '..', 'data', 'data.json');
+    const lockedPath = path.join(__dirname, '..', 'data', 'locked_accounts.txt');
+
+    try {
+        if (fs.existsSync(dataPath)) {
+            const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+            if (data.lockedAccounts) {
+                Object.keys(data.lockedAccounts).forEach(email => locked.add(email));
+            }
+        }
+    } catch (_) {}
+
+    try {
+        if (fs.existsSync(lockedPath)) {
+            fs.readFileSync(lockedPath, 'utf8').replace(/\r/g, '').split('\n').forEach(line => {
+                const match = line.match(/:\s*([^\s]+@[^\s]+)\s*-/) || line.match(/^([^\s|:]+@[^\s|:]+)/);
+                if (match) locked.add(match[1].trim());
+            });
+        }
+    } catch (_) {}
+
+    return locked;
+}
+
 async function returnToWallet(page) {
     try {
         await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
@@ -117,11 +188,26 @@ async function updateNormal() {
         return;
     }
 
+    const lockedAccounts = loadLockedAccountEmails();
+    const availableAccounts = accounts.filter(accountLine => {
+        const email = accountLine.split('|')[0].trim();
+        if (lockedAccounts.has(email)) {
+            console.app(`Skip locked account: ${email}`);
+            return false;
+        }
+        return true;
+    });
+
+    if (availableAccounts.length === 0) {
+        console.app('No available accounts after filtering locked accounts');
+        return;
+    }
+
     let currentAccountIndex = 0;
-    while (currentAccountIndex < accounts.length) {
+    while (currentAccountIndex < availableAccounts.length) {
         const batch = [];
-        for (let i = 0; i < maxConcurrentWindows && currentAccountIndex < accounts.length; i++) {
-            batch.push({ accountLine: accounts[currentAccountIndex], index: currentAccountIndex });
+        for (let i = 0; i < maxConcurrentWindows && currentAccountIndex < availableAccounts.length; i++) {
+            batch.push({ accountLine: availableAccounts[currentAccountIndex], index: currentAccountIndex });
             currentAccountIndex++;
         }
 
@@ -219,6 +305,13 @@ async function processAccount(accountLine, index) {
             code: secret,
             proxy
         });
+
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        if (await isAccountLockedPage(page)) {
+            markLockedAccount(email, 'ACCOUNT_LOCKED');
+            console.app(`Account locked detected after login: ${email}`);
+            return;
+        }
 
         await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -407,6 +500,12 @@ async function processAccount(accountLine, index) {
         console.log(`Successfully logged in: ${email}`);
         console.app(`Successfully logged in: ${email}`);
     } catch (error) {
+        if (String(error.message || '').includes('ACCOUNT_LOCKED') || String(error.message || '').includes('account-status') || await isAccountLockedPage(page)) {
+            markLockedAccount(email, 'ACCOUNT_LOCKED');
+            console.app(`Account locked detected: ${email}`);
+            return;
+        }
+
         console.log(`Normal login failed [${index + 1}] ${email}: ${error.message}`);
         console.app(`Normal login failed [${index + 1}] ${email}: ${error.message}`);
     } finally {

@@ -108,6 +108,77 @@ function appendCardResult(kind, card, email, reason = '') {
     fs.appendFileSync(path.join(dirSave, `${kind}.txt`), line + '\n', 'utf8');
 }
 
+async function isAccountLockedPage(page) {
+    try {
+        if (!page || page.isClosed()) return false;
+        const url = page.url();
+        if (url.includes('account-status.amazon.com')) return true;
+
+        return await page.evaluate(() => {
+            const text = (document.body && document.body.innerText || '').toLowerCase();
+            return text.includes('account locked temporarily') ||
+                text.includes('your account has been locked') ||
+                text.includes('account has been locked') ||
+                text.includes('account on hold') ||
+                text.includes('your account is currently under review');
+        });
+    } catch (_) {
+        return false;
+    }
+}
+
+function markLockedAccount(email, reason = 'ACCOUNT_LOCKED') {
+    const dataPath = path.join(__dirname, '..', 'data', 'data.json');
+    const lockedPath = path.join(__dirname, '..', 'data', 'locked_accounts.txt');
+
+    try {
+        let data = {};
+        if (fs.existsSync(dataPath)) {
+            data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        }
+        if (!data.lockedAccounts) data.lockedAccounts = {};
+        data.lockedAccounts[email] = { lockedAt: Date.now(), reason };
+        fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    } catch (error) {
+        console.app(`Could not save locked account to data.json: ${error.message}`);
+    }
+
+    try {
+        const existing = fs.existsSync(lockedPath) ? fs.readFileSync(lockedPath, 'utf8') : '';
+        if (!existing.includes(email)) {
+            fs.appendFileSync(lockedPath, `${new Date().toISOString()}: ${email} - ${reason} - AUTO_DETECTED\n`, 'utf8');
+        }
+    } catch (error) {
+        console.app(`Could not write locked account: ${error.message}`);
+    }
+}
+
+function loadLockedAccountEmails() {
+    const locked = new Set();
+    const dataPath = path.join(__dirname, '..', 'data', 'data.json');
+    const lockedPath = path.join(__dirname, '..', 'data', 'locked_accounts.txt');
+
+    try {
+        if (fs.existsSync(dataPath)) {
+            const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+            if (data.lockedAccounts) {
+                Object.keys(data.lockedAccounts).forEach(email => locked.add(email));
+            }
+        }
+    } catch (_) {}
+
+    try {
+        if (fs.existsSync(lockedPath)) {
+            fs.readFileSync(lockedPath, 'utf8').replace(/\r/g, '').split('\n').forEach(line => {
+                const match = line.match(/:\s*([^\s]+@[^\s]+)\s*-/) || line.match(/^([^\s|:]+@[^\s|:]+)/);
+                if (match) locked.add(match[1].trim());
+            });
+        }
+    } catch (_) {}
+
+    return locked;
+}
+
 async function clickStartBrowsingIfPresent(page, email) {
     const started = Date.now();
     while (Date.now() - started < 15000) {
@@ -375,13 +446,17 @@ async function updateBusiness() {
 
     // ⭐ FILTER OUT ALREADY BUSINESS ACCOUNTS
     const businessAccounts = loadBusinessAccounts();
+    const lockedAccounts = loadLockedAccountEmails();
     const accountsToProcess = [];
     let skippedCount = 0;
 
     for (const accountLine of childAccounts) {
         const email = accountLine.split('|')[0];
         
-        if (!shouldSkipBusinessUpgrade(email)) {
+        if (lockedAccounts.has(email)) {
+            console.app(`Skip locked account: ${email}`);
+            skippedCount++;
+        } else if (!shouldSkipBusinessUpgrade(email)) {
             accountsToProcess.push(accountLine);
         } else {
             skippedCount++;
@@ -571,6 +646,13 @@ async function processAccount(accountLine, batchIndex) {
 
         await require(path.join(__dirname, "..", "api", "business", "login.js"))(page, loginForm);
 
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        if (await isAccountLockedPage(page)) {
+            markLockedAccount(email, 'ACCOUNT_LOCKED');
+            console.app(`Account locked detected after login: ${email}`);
+            return;
+        }
+
         console.log(`✅ [${batchIndex + 1}] Successfully logged in: ${email}`);
         console.app(`✅ [${batchIndex + 1}] Successfully logged in: ${email}`);
 
@@ -666,6 +748,12 @@ async function processAccount(accountLine, batchIndex) {
         await runBusinessCardFlow(page, email);
 
     } catch (error) {
+        if (String(error.message || '').includes('ACCOUNT_LOCKED') || String(error.message || '').includes('account-status') || await isAccountLockedPage(page)) {
+            markLockedAccount(email, 'ACCOUNT_LOCKED');
+            console.app(`Account locked detected: ${email}`);
+            return;
+        }
+
         if (error.message.includes("ACCOUNT_ALREADY_BUSINESS") && page && !page.isClosed()) {
             console.log(`Business account already available for ${email}, continuing to card flow`);
             console.app(`Business account already available for ${email}, continuing to card flow`);
