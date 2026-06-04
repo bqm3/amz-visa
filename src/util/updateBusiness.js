@@ -363,6 +363,10 @@ async function updateBusiness() {
     if (console.card && typeof console.card.setTotal === 'function') {
         console.card.setTotal(startupCardLines.length);
     }
+    if (sharedCardQueue.remainingCount() === 0) {
+        console.app('No unclaimed cards available. Clear src/data/checkcard.txt if you want to run these cards again.');
+        return;
+    }
 
     // ⭐ FILTER OUT ALREADY BUSINESS ACCOUNTS
     const businessAccounts = loadBusinessAccounts();

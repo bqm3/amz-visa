@@ -106,6 +106,10 @@ async function updateNormal() {
     if (console.card && typeof console.card.setTotal === 'function') {
         console.card.setTotal(cardLines.length);
     }
+    if (sharedCardQueue.remainingCount() === 0) {
+        console.app('No unclaimed cards available. Clear src/data/checkcard.txt if you want to run these cards again.');
+        return;
+    }
 
     if (accounts.length === 0) {
         console.log('No accounts found in acc.txt');

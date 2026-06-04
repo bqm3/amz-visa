@@ -68,10 +68,11 @@ function initialize(cardLines, force = false) {
     loadCheckedCards();
     queue = (cardLines || [])
         .map(normalizeCardLine)
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter(card => !checkedCards.has(card.key));
     initialized = true;
 
-    console.app(`Shared card queue initialized: ${queue.length} card(s), ${checkedCards.size} checked key(s)`);
+    console.app(`Shared card queue initialized: ${queue.length} unclaimed card(s), ${checkedCards.size} checked key(s)`);
 }
 
 function claimNextCard(owner = '') {
