@@ -2,8 +2,8 @@ const puppeteer = require('puppeteer');
 const path = require('path');
 
 async function login(page, { email, pass, code, proxy }) {
-    console.log("Business login function called with email:", email, "and password:", pass);
-    console.app("Business login function called with email:", email, "and password:", pass);
+    console.log("Gọi hàm login business với email:", email, "và password:", pass);
+    console.app("Gọi hàm login business với email:", email, "và password:", pass);
 
     const timeout = 30000; // 30 seconds timeout to fail fast on errors
     page.setDefaultTimeout(timeout);
@@ -153,11 +153,11 @@ async function login(page, { email, pass, code, proxy }) {
             try {
                 let twofactor = require("node-2fa");
                 otpCode = twofactor.generateToken(code).token;
-                console.log("Generated 2FA token:", otpCode);
-                console.app("Generated 2FA token:", otpCode);
+                console.log("Đã tạo mã 2FA:", otpCode);
+                console.app("Đã tạo mã 2FA:", otpCode);
             } catch (error) {
-                console.log("Error generating 2FA token, using provided code:", code);
-                console.app("Error generating 2FA token, using provided code:", code);
+                console.log("Lỗi khi tạo mã 2FA, dùng mã được cung cấp:", code);
+                console.app("Lỗi khi tạo mã 2FA, dùng mã được cung cấp:", code);
                 otpCode = code;
             }
         }
@@ -224,28 +224,28 @@ async function handleCapcha(page, timeout) {
         } catch (_) { }
         
         if (!captchaForm) {
-            console.log("No captcha form detected, proceeding...");
+            console.log("Không phát hiện form CAPTCHA, tiếp tục...");
             captchaResolved = true;
             return;
         }
         
-        console.log("Captcha detected, attempting to solve...");
+        console.log("Phát hiện CAPTCHA, đang thử giải...");
         const captchaSrc = await page.evaluate(() => {
             const captchaImage = document.querySelector('form[action="/errors/validateCaptcha"] img');
             return captchaImage ? captchaImage.src : null;
         });
         
-        console.log("Captcha image source:", captchaSrc);
+        console.log("Nguồn ảnh CAPTCHA:", captchaSrc);
         const resCapcha = await require(path.join(__dirname, "..", "capcha.js"))(captchaSrc);
         
         if (!resCapcha || !resCapcha.success) {
-            console.log("Captcha solution failed, retrying...");
-            console.app("Captcha solution failed, retrying...");
+            console.log("Giải CAPTCHA thất bại, thử lại...");
+            console.app("Giải CAPTCHA thất bại, thử lại...");
             continue;
         }
         
-        console.log("Captcha result:", resCapcha);
-        console.app("Captcha result:", resCapcha.captchaCode);
+        console.log("Kết quả CAPTCHA:", resCapcha);
+        console.app("Kết quả CAPTCHA:", resCapcha.captchaCode);
         
         // Fill in the captcha field
         await puppeteer.Locator.race([
@@ -277,8 +277,8 @@ async function handleCapcha(page, timeout) {
             promises.push(
                 page.waitForNavigation({ timeout: 8000 })
                     .catch(err => {
-                        console.log("Navigation timeout after CAPTCHA submission, continuing anyway");
-                        console.app("Navigation timeout after CAPTCHA submission, continuing anyway");
+                        console.log("Chờ chuyển trang sau khi submit CAPTCHA bị timeout, vẫn tiếp tục");
+                        console.app("Chờ chuyển trang sau khi submit CAPTCHA bị timeout, vẫn tiếp tục");
                         return null;
                     })
             );
@@ -306,15 +306,15 @@ async function handleCapcha(page, timeout) {
         try {
             captchaForm = await page.$('form[action="/errors/validateCaptcha"] img');
             if (captchaForm) {
-                console.log("Captcha still present after submission, retrying...");
-                console.app("Captcha still present after submission, retrying...");
+                console.log("CAPTCHA vẫn còn sau khi submit, thử lại...");
+                console.app("CAPTCHA vẫn còn sau khi submit, thử lại...");
             } else {
-                console.log("Captcha passed successfully!");
-                console.app("Captcha passed successfully!");
+                console.log("Đã vượt CAPTCHA thành công!");
+                console.app("Đã vượt CAPTCHA thành công!");
                 captchaResolved = true;
             }
         } catch (e) {
-            console.log("Error checking captcha form:", e);
+            console.log("Lỗi khi kiểm tra form CAPTCHA:", e);
             captchaResolved = true;
         }
     }

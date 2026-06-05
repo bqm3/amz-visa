@@ -29,9 +29,9 @@ async function continueLogin(page) {
         });
 
       await Promise.all(promises);
-      console.log("   ✅ Clicked continue login");
+      console.log("   Đã bấm tiếp tục login");
     } catch (err) {
-      console.log("   ℹ️ Continue login step not found or skipped, proceeding directly...");
+      console.log("   Không thấy bước tiếp tục login hoặc đã bỏ qua, đi tiếp...");
     }
   }
 }
@@ -303,7 +303,7 @@ async function finalSetup(page) {
   const maxAttempts = 5;
   while (!check && attempts < maxAttempts) {
     attempts++;
-    console.log(`Waiting for the skip upsell button to appear... (attempt ${attempts}/${maxAttempts})`);
+    console.log(`Đang chờ nút bỏ qua upsell xuất hiện... (lần ${attempts}/${maxAttempts})`);
     try {
       const targetPage = page;
       const promises = [];
@@ -355,8 +355,8 @@ async function finalSetup(page) {
     check = true;
   }
 
-  console.log('Skip upsell button clicked, waiting for the next page...');
-  console.log('Final setup completed.');
+  console.log('Đã bấm bỏ qua upsell, đang chờ trang tiếp theo...');
+  console.log('Đã hoàn tất setup cuối.');
 }
 module.exports = {
   continueLogin,

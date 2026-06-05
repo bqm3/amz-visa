@@ -18,12 +18,12 @@ const GENERATION_CONFIG = {
 
 async function solveCaptchaFromUrl(imageUrl) {
 	if (!GEMINI_API_KEY) {
-		console.error("Error: GEMINI_API_KEY environment variable is not set.");
-		return { success: false, captchaCode: null, error: "API Key not configured" };
+		console.error("Lỗi: chưa cấu hình GEMINI_API_KEY.");
+		return { success: false, captchaCode: null, error: "Chưa cấu hình API Key" };
 	}
 	if (!imageUrl) {
-		console.error("Error: Image URL is required.");
-		return { success: false, captchaCode: null, error: "Image URL missing" };
+		console.error("Lỗi: thiếu URL ảnh CAPTCHA.");
+		return { success: false, captchaCode: null, error: "Thiếu URL ảnh" };
 	}
 
 	const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -35,18 +35,18 @@ async function solveCaptchaFromUrl(imageUrl) {
 
 	let imagePart;
 	try {
-		console.log(`Fetching image from: ${imageUrl}`);
+		console.log(`Đang tải ảnh CAPTCHA từ: ${imageUrl}`);
 		const response = await axios.get(imageUrl, {
 			responseType: 'arraybuffer',
 		});
 
 		if (!response.data || response.data.byteLength < 100) { // Basic check
-			throw new Error(`Downloaded data seems too small or empty.`);
+			throw new Error(`Dữ liệu tải về quá nhỏ hoặc rỗng.`);
 		}
 
 		const imageData = Buffer.from(response.data);
 		const base64Data = imageData.toString('base64');
-		console.log(`Successfully fetched and encoded image (${(imageData.length / 1024).toFixed(2)} KB).`);
+		console.log(`Đã tải và mã hóa ảnh (${(imageData.length / 1024).toFixed(2)} KB).`);
 
 		imagePart = {
 			inlineData: {
@@ -58,8 +58,8 @@ async function solveCaptchaFromUrl(imageUrl) {
 		const errorMessage = axios.isAxiosError(error)
 			? `Status ${error.response?.status}: ${error.message}`
 			: error.message;
-		console.error(`Error fetching/processing image from URL (${imageUrl}): ${errorMessage}`);
-		return { success: false, captchaCode: null, error: `Image fetch/process failed: ${errorMessage}` };
+		console.error(`Lỗi khi tải/xử lý ảnh từ URL (${imageUrl}): ${errorMessage}`);
+		return { success: false, captchaCode: null, error: `Tải/xử lý ảnh thất bại: ${errorMessage}` };
 	}
 
 	const promptParts = [
@@ -67,7 +67,7 @@ async function solveCaptchaFromUrl(imageUrl) {
 	];
 
 	try {
-		console.log("Sending request to Gemini API...");
+		console.log("Đang gửi yêu cầu giải CAPTCHA tới Gemini API...");
 		const result = await model.generateContentStream(promptParts);
 
 		let fullResponse = '';
@@ -81,16 +81,16 @@ async function solveCaptchaFromUrl(imageUrl) {
 		const cleanedResponse = fullResponse.trim().replace(/\s+/g, '');
 
 		if (cleanedResponse.length === 6) {
-			console.log(`Successfully extracted 6 characters: ${cleanedResponse}`);
+			console.log(`Đã nhận đủ 6 ký tự CAPTCHA: ${cleanedResponse}`);
 			return { success: true, captchaCode: cleanedResponse, error: null };
 		} else {
-			console.error(`Error: Response validation failed. Expected 6 characters, got ${cleanedResponse.length}. Raw Response: "${fullResponse}"`);
-			return { success: false, captchaCode: null, error: `Invalid response length (${cleanedResponse.length}). Raw: "${fullResponse}"` };
+			console.error(`Lỗi: phản hồi không hợp lệ. Cần 6 ký tự, nhận ${cleanedResponse.length}. Phản hồi gốc: "${fullResponse}"`);
+			return { success: false, captchaCode: null, error: `Độ dài phản hồi không hợp lệ (${cleanedResponse.length}). Gốc: "${fullResponse}"` };
 		}
 
 	} catch (apiError) {
-		console.error("\nError calling Gemini API:", apiError.message);
-		return { success: false, captchaCode: null, error: `API Error: ${apiError.message}` };
+		console.error("\nLỗi khi gọi Gemini API:", apiError.message);
+		return { success: false, captchaCode: null, error: `Lỗi API: ${apiError.message}` };
 	}
 }
 

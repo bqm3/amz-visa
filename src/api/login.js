@@ -8,15 +8,15 @@ async function handleConnectionTimeout(page, retryCount = 0) {
         throw new Error("MAX_RETRIES_EXCEEDED");
     }
     
-    console.log(`⚠️ Connection timeout detected, waiting 30s before retry (attempt ${retryCount + 1}/3)...`);
-    console.app(`⚠️ Connection timeout detected, waiting 30s before retry (attempt ${retryCount + 1}/3)...`);
+    console.log(`Phát hiện timeout kết nối, chờ 30s rồi thử lại (lần ${retryCount + 1}/3)...`);
+    console.app(`Phát hiện timeout kết nối, chờ 30s rồi thử lại (lần ${retryCount + 1}/3)...`);
     
     // Wait 30 seconds
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     try {
         // Reload page
-        console.log(`🔄 Refreshing page after timeout...`);
+        console.log(`Đang refresh trang sau timeout...`);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 7000 });
         
         // Wait for page to stabilize
@@ -25,7 +25,7 @@ async function handleConnectionTimeout(page, retryCount = 0) {
         console.log(`✅ Page refreshed successfully`);
         return true;
     } catch (error) {
-        console.error(`❌ Error during page refresh:`, error.message);
+        console.error(`Lỗi khi refresh trang:`, error.message);
         return false;
     }
 }
@@ -33,7 +33,7 @@ async function handleConnectionTimeout(page, retryCount = 0) {
 // ✅ SINGLE OPTIMIZED waitForPageLoad FUNCTION
 async function waitForPageLoad(page, timeout = 5000) {
     try {
-        console.log('🔄 Waiting for page to load completely...');
+        console.log('Đang chờ trang tải xong...');
 
         // Bounded wait: never block forever if Amazon keeps page in non-complete state.
         await page.waitForFunction(
@@ -47,7 +47,7 @@ async function waitForPageLoad(page, timeout = 5000) {
         console.log('✅ Page loaded successfully');
         
     } catch (error) {
-        console.log(`⚠️ Page load error: ${error.message}, continuing anyway...`);
+        console.log(`Lỗi khi tải trang: ${error.message}, vẫn tiếp tục...`);
         
         // Minimal fallback
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -74,8 +74,8 @@ async function waitForManualCaptchaSolve(page, timeoutMs = 20000) {
     while (Date.now() - start < timeoutMs) {
         const stillCaptcha = await isCaptchaPage(page);
         if (!stillCaptcha) {
-            console.log("✅ CAPTCHA solved manually, continuing login...");
-            console.app("✅ CAPTCHA solved manually, continuing login...");
+            console.log("CAPTCHA đã được giải thủ công, tiếp tục login...");
+            console.app("CAPTCHA đã được giải thủ công, tiếp tục login...");
             return true;
         }
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -212,7 +212,7 @@ async function detectAccountStatus(page) {
         
         return 'NORMAL';
     } catch (error) {
-        console.log(`Error detecting account status: ${error.message}`);
+        console.log(`Lỗi khi kiểm tra trạng thái account: ${error.message}`);
         return 'NORMAL';
     }
 }
@@ -220,8 +220,8 @@ async function detectAccountStatus(page) {
 // Function to remove locked account from files
 function removeLockedAccount(email) {
     try {
-        console.log(`🔍 Starting removal process for locked account: ${email}`);
-        console.app(`🔍 Starting removal process for locked account: ${email}`);
+        console.log(`Bắt đầu xử lý xóa account bị khóa: ${email}`);
+        console.app(`Bắt đầu xử lý xóa account bị khóa: ${email}`);
         
         // Remove from acc.txt with absolute path
         const accPath = path.join(__dirname, '..', 'data', 'acc.txt');
@@ -251,23 +251,23 @@ function removeLockedAccount(email) {
             
             if (filteredLines.length !== originalLines.length) {
                 fs.writeFileSync(accPath, filteredLines.join('\n'), 'utf8');
-                console.log(`💾 Successfully removed ${email} from acc.txt`);
-                console.app(`💾 Successfully removed ${email} from acc.txt`);
+                console.log(`Đã xóa ${email} khỏi acc.txt`);
+                console.app(`Đã xóa ${email} khỏi acc.txt`);
             } else {
-                console.log(`⚠️ Account ${email} not found in acc.txt`);
-                console.app(`⚠️ Account ${email} not found in acc.txt`);
+                console.log(`Không tìm thấy account ${email} trong acc.txt`);
+                console.app(`Không tìm thấy account ${email} trong acc.txt`);
             }
         } else {
-            console.log(`❌ acc.txt file not found at: ${accPath}`);
-            console.app(`❌ acc.txt file not found at: ${accPath}`);
+            console.log(`Không tìm thấy file acc.txt tại: ${accPath}`);
+            console.app(`Không tìm thấy file acc.txt tại: ${accPath}`);
         }
 
         // Remove from data.json with absolute path
         const dataPath = path.join(__dirname, '..', 'data', 'data.json');
-        console.log(`📁 Checking data.json path: ${dataPath}`);
+        console.log(`Đang kiểm tra đường dẫn data.json: ${dataPath}`);
         
         if (fs.existsSync(dataPath)) {
-            console.log(`✅ data.json file exists, reading content...`);
+            console.log(`data.json tồn tại, đang đọc nội dung...`);
             let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
             let dataChanged = false;
             
@@ -275,7 +275,7 @@ function removeLockedAccount(email) {
             if (data.childCount && data.childCount[email]) {
                 delete data.childCount[email];
                 dataChanged = true;
-                console.log(`🗑️ Removed ${email} from data.json childCount`);
+                console.log(`Đã xóa ${email} khỏi childCount trong data.json`);
             }
             
             // Remove from businessAccounts if exists
@@ -284,7 +284,7 @@ function removeLockedAccount(email) {
                 data.businessAccounts = data.businessAccounts.filter(acc => acc !== email);
                 if (data.businessAccounts.length !== originalCount) {
                     dataChanged = true;
-                    console.log(`🗑️ Removed ${email} from data.json businessAccounts`);
+                    console.log(`Đã xóa ${email} khỏi businessAccounts trong data.json`);
                 }
             }
             
@@ -303,17 +303,17 @@ function removeLockedAccount(email) {
                     removedFromFiles: true
                 });
                 dataChanged = true;
-                console.log(`📝 Added ${email} to locked accounts history`);
+                console.log(`Đã thêm ${email} vào lịch sử account bị khóa`);
             }
             
             if (dataChanged) {
                 fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
-                console.log(`💾 Updated data.json - removed ${email}`);
-                console.app(`💾 Updated data.json - removed ${email}`);
+                console.log(`Đã cập nhật data.json - xóa ${email}`);
+                console.app(`Đã cập nhật data.json - xóa ${email}`);
             }
         } else {
-            console.log(`❌ data.json file not found at: ${dataPath}`);
-            console.app(`❌ data.json file not found at: ${dataPath}`);
+            console.log(`Không tìm thấy data.json tại: ${dataPath}`);
+            console.app(`Không tìm thấy data.json tại: ${dataPath}`);
         }
         
         // Create locked accounts report file
@@ -321,20 +321,20 @@ function removeLockedAccount(email) {
         const timestamp = new Date().toISOString();
         const reportLine = `${timestamp}: ${email} - ACCOUNT_LOCKED - REMOVED_FROM_FILES\n`;
         fs.appendFileSync(lockedReportPath, reportLine, 'utf8');
-        console.log(`📄 Added to locked accounts report: ${lockedReportPath}`);
+        console.log(`Đã thêm vào báo cáo account bị khóa: ${lockedReportPath}`);
         
         return true;
     } catch (error) {
-        console.error(`❌ Error removing locked account ${email}:`, error.message);
-        console.app(`❌ Error removing locked account ${email}: ${error.message}`);
+        console.error(`Lỗi khi xóa account bị khóa ${email}:`, error.message);
+        console.app(`Lỗi khi xóa account bị khóa ${email}: ${error.message}`);
         return false;
     }
 }
 
 // Main login function
 async function login(page, { email, pass, code, proxy }) {
-    console.log("Login function called with email:", email, "and password:", pass);
-    console.app("Login function called with email:", email, "and password:", pass);
+    console.log("Gọi hàm login với email:", email, "và password:", pass);
+    console.app("Gọi hàm login với email:", email, "và password:", pass);
 
     const timeout = 30 * 60 * 1000;
     page.setDefaultTimeout(timeout);
@@ -360,8 +360,8 @@ async function login(page, { email, pass, code, proxy }) {
 
     while (retries > 0 && !success) {
         try {
-            console.log(`Attempting to navigate to login page (${retries} attempts left)...`);
-            console.app(`Attempting to navigate to login page (${retries} attempts left)...`);
+            console.log(`Đang mở trang login (còn ${retries} lần thử)...`);
+            console.app(`Đang mở trang login (còn ${retries} lần thử)...`);
             await page.goto(
                 'https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https://www.amazon.com/?ref_=nav_signin&openid.identity=http://specs.openid.net/auth/2.0/identifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select&openid.ns=http://specs.openid.net/auth/2.0',
                 { waitUntil: 'domcontentloaded', timeout: 10000 }
@@ -376,26 +376,26 @@ async function login(page, { email, pass, code, proxy }) {
             
             // Handle timeout errors
             if (err.message.includes('timeout') || err.message.includes('net::ERR_') || err.message.includes('Navigation timeout')) {
-                console.log(`🔄 Navigation timeout detected: ${err.message}`);
+                console.log(`Phát hiện timeout điều hướng: ${err.message}`);
                 
                 try {
                     const handled = await handleConnectionTimeout(page, 3 - retries);
                     if (handled && retries > 0) {
-                        console.log(`🔄 Retrying after timeout handling...`);
+                        console.log(`Thử lại sau khi xử lý timeout...`);
                         continue;
                     }
                 } catch (timeoutError) {
-                    console.log(`❌ Failed to handle timeout: ${timeoutError.message}`);
+                    console.log(`Xử lý timeout thất bại: ${timeoutError.message}`);
                 }
             }
             
             if (retries === 0) {
-                console.log("Failed to load Amazon login page after multiple attempts.");
-                console.app("Failed to load Amazon login page after multiple attempts.");
+                console.log("Không tải được trang login Amazon sau nhiều lần thử.");
+                console.app("Không tải được trang login Amazon sau nhiều lần thử.");
                 throw new Error("FAILED_LOAD_LOGIN_PAGE");
             }
-            console.log(`Error loading page: ${err.message}. Retrying...`);
-            console.app(`Error loading page: ${err.message}. Retrying...`);
+            console.log(`Lỗi khi tải trang: ${err.message}. Đang thử lại...`);
+            console.app(`Lỗi khi tải trang: ${err.message}. Đang thử lại...`);
             await new Promise(r => setTimeout(r, 5000));
         }
     }
@@ -406,8 +406,8 @@ async function login(page, { email, pass, code, proxy }) {
             await handleCapcha(page, timeout);
             await waitForPageLoad(page);
         } else {
-            console.log("⚠️ CAPTCHA detected but no Gemini key. Please solve CAPTCHA in browser window.");
-            console.app("⚠️ CAPTCHA detected. Solve it manually in browser (max 120s)...");
+            console.log("Phát hiện CAPTCHA nhưng chưa có Gemini key. Vui lòng giải CAPTCHA trong cửa sổ browser.");
+            console.app("Phát hiện CAPTCHA. Hãy giải thủ công trong browser (tối đa 120s)...");
             const solved = await waitForManualCaptchaSolve(page, 120000);
             if (!solved) {
                 throw new Error("CAPTCHA_NOT_SOLVED_MANUALLY");
@@ -464,7 +464,7 @@ async function login(page, { email, pass, code, proxy }) {
                     if (global.data.parentAcc.geminiKey && global.data.parentAcc.geminiKey != "") {
                         await handleCapcha(targetPage, timeout);
                     } else {
-                        console.app("⚠️ CAPTCHA detected. Solve it manually in browser (max 120s)...");
+                        console.app("Phát hiện CAPTCHA. Hãy giải thủ công trong browser (tối đa 120s)...");
                         const solved = await waitForManualCaptchaSolve(targetPage, 120000);
                         if (!solved) throw new Error("CAPTCHA_NOT_SOLVED_MANUALLY");
                     }
@@ -498,8 +498,8 @@ async function login(page, { email, pass, code, proxy }) {
             }
             await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
-            console.log("Error filling email:", error.message);
-            console.app("Error filling email:" + error.message);
+            console.log("Lỗi khi nhập email:", error.message);
+            console.app("Lỗi khi nhập email: " + error.message);
             throw new Error("FAILED_FILL_EMAIL");
         }
     }
@@ -519,8 +519,8 @@ async function login(page, { email, pass, code, proxy }) {
             await targetPage.waitForNavigation({ timeout: 8000 });
             await waitForPageLoad(page);
         } catch (error) {
-            console.log("Error after clicking continue:", error.message);
-            console.app("Error after clicking continue:" + error.message);
+            console.log("Lỗi sau khi bấm Continue:", error.message);
+            console.app("Lỗi sau khi bấm Continue: " + error.message);
             throw new Error("FAILED_CLICK_CONTINUE");
         }
     }
@@ -550,8 +550,8 @@ async function login(page, { email, pass, code, proxy }) {
             }
             await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
-            console.log("Error filling password:", error.message);
-            console.app("Error filling password:" + error.message);
+            console.log("Lỗi khi nhập password:", error.message);
+            console.app("Lỗi khi nhập password: " + error.message);
             throw new Error("FAILED_FILL_PASSWORD");
         }
     }
@@ -596,7 +596,7 @@ async function login(page, { email, pass, code, proxy }) {
                     })
                 ]);
             } catch (navError) {
-                console.log(`⚠️ Navigation wait completed with: ${navError.message}`);
+                console.log(`Chờ điều hướng kết thúc với thông báo: ${navError.message}`);
             }
             
             // Wait for page to stabilize
@@ -606,7 +606,7 @@ async function login(page, { email, pass, code, proxy }) {
             try {
                 afterClickUrl = await targetPage.url();
             } catch (e) {
-                console.log('⚠️ Error getting URL after click, page might be navigating...');
+                console.log('Lỗi khi lấy URL sau click, có thể trang đang chuyển hướng...');
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 afterClickUrl = await targetPage.url();
             }
@@ -618,15 +618,15 @@ async function login(page, { email, pass, code, proxy }) {
             const accountStatus = await detectAccountStatus(targetPage);
             
             if (accountStatus === 'ACCOUNT_LOCKED') {
-                console.log(`❌ Account ${email} is locked or suspended`);
-                console.app(`❌ Account ${email} is locked or suspended`);
+                console.log(`Account ${email} bị khóa hoặc bị tạm ngưng`);
+                console.app(`Account ${email} bị khóa hoặc bị tạm ngưng`);
                 
                 // Remove account from files immediately
                 const removeResult = removeLockedAccount(email);
                 if (removeResult) {
-                    console.log(`✅ Successfully processed locked account removal for ${email}`);
+                    console.log(`Đã xử lý xóa account bị khóa cho ${email}`);
                 } else {
-                    console.log(`⚠️ Failed to remove locked account ${email} from files`);
+                    console.log(`Không thể xóa account bị khóa ${email} khỏi file`);
                 }
                 
                 throw new Error("ACCOUNT_LOCKED");
@@ -641,12 +641,12 @@ async function login(page, { email, pass, code, proxy }) {
                 // Double check for account lock
                 const currentStatus = await detectAccountStatus(targetPage);
                 if (currentStatus === 'ACCOUNT_LOCKED') {
-                    console.log(`❌ Account ${email} is locked (detected after password check)`);
-                    console.app(`❌ Account ${email} is locked (detected after password check)`);
+                    console.log(`Account ${email} bị khóa (phát hiện sau bước kiểm tra password)`);
+                    console.app(`Account ${email} bị khóa (phát hiện sau bước kiểm tra password)`);
                     
                     const removeResult = removeLockedAccount(email);
                     if (removeResult) {
-                        console.log(`✅ Successfully processed locked account removal for ${email}`);
+                        console.log(`Đã xử lý xóa account bị khóa cho ${email}`);
                     }
                     
                     throw new Error("ACCOUNT_LOCKED");
@@ -663,18 +663,18 @@ async function login(page, { email, pass, code, proxy }) {
                     });
                     
                     if (hasErrors) {
-                        console.log(`❌ Incorrect password for ${email}`);
-                        console.app(`❌ Incorrect password for ${email}`);
+                        console.log(`Sai password cho ${email}`);
+                        console.app(`Sai password cho ${email}`);
                         throw new Error("INCORRECT_PASS");
                     }
                 }
             }
             
-            console.log('✅ Sign in click successful');
+            console.log('Đã bấm Sign in thành công');
             
         } catch (error) {
-            console.log("Error after clicking sign in:", error.message);
-            console.app("Error after clicking sign in:" + error.message);
+            console.log("Lỗi sau khi bấm Sign in:", error.message);
+            console.app("Lỗi sau khi bấm Sign in: " + error.message);
             
             // Handle specific account lock scenarios
             if (error.message === "ACCOUNT_LOCKED") {
@@ -691,14 +691,14 @@ async function login(page, { email, pass, code, proxy }) {
 
     // Handle MFA if required
     if (page.url().includes('/ap/mfa')) {
-        console.log("MFA page detected. Handling MFA...");
+        console.log("Phát hiện trang MFA, đang xử lý MFA...");
 
         let mfaRetries = 3;
         while (mfaRetries > 0) {
             try {
                 let twofactor = require("node-2fa");
                 let mfaToken = twofactor.generateToken(code).token;
-                console.log("Generated MFA token:", mfaToken);
+                console.log("Đã tạo mã MFA:", mfaToken);
 
                 {
                     const targetPage = page;
@@ -716,11 +716,11 @@ async function login(page, { email, pass, code, proxy }) {
 
                     if (dontRequireExists) {
                         await targetPage.locator("label[for='auth-mfa-remember-device']").click();
-                        console.log("Clicked 'Don't require' option");
+                        console.log("Đã bấm tùy chọn 'Don't require'");
                         await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 } catch (dontRequireError) {
-                    console.log("'Don't require' option not found or couldn't click, continuing...");
+                    console.log("Không tìm thấy hoặc không bấm được tùy chọn 'Don't require', tiếp tục...");
                 }
 
                 {
@@ -730,12 +730,12 @@ async function login(page, { email, pass, code, proxy }) {
                     await new Promise(resolve => setTimeout(resolve, 3500));
                 }
 
-                console.log("MFA handled successfully");
+                console.log("Đã xử lý MFA thành công");
                 break; // Success
                 
             } catch (mfaError) {
                 mfaRetries--;
-                console.log(`Error handling MFA (${mfaRetries} retries left):`, mfaError.message);
+                console.log(`Lỗi khi xử lý MFA (còn ${mfaRetries} lần thử):`, mfaError.message);
                 
                 // Handle timeout in MFA
                 if (mfaError.message.includes('timeout') && mfaRetries > 0) {
@@ -796,7 +796,7 @@ async function login(page, { email, pass, code, proxy }) {
         });
 
         if (!shouldCheckSwitcher) {
-            console.log("No account switcher context detected, skipping switcher handling.");
+            console.log("Không phát hiện màn chọn account, bỏ qua bước xử lý switcher.");
             throw new Error("__SKIP_SWITCHER__");
         }
 
@@ -869,13 +869,13 @@ async function login(page, { email, pass, code, proxy }) {
                 ]);
             } catch (_) {}
             await waitForPageLoad(page);
-            console.log("Clicked account switcher anchor (Personal preferred)");
+            console.log("Đã bấm lựa chọn account cá nhân");
         } else {
-            console.log("No switch-account anchor found after MFA, continuing...");
+            console.log("Không tìm thấy lựa chọn đổi account sau MFA, tiếp tục...");
         }
     } catch (error) {
         if (error.message !== "__SKIP_SWITCHER__") {
-            console.log("Account switcher handling failed, continuing...");
+            console.log("Xử lý màn chọn account thất bại, tiếp tục...");
         }
     }
 
@@ -912,11 +912,11 @@ async function login(page, { email, pass, code, proxy }) {
         const finalStatus = await detectAccountStatus(page);
         
         if (finalStatus === 'ACCOUNT_LOCKED') {
-            console.log(`❌ Account ${email} is locked (final check)`);
+            console.log(`Account ${email} bị khóa (kiểm tra cuối)`);
             
             const removeResult = removeLockedAccount(email);
             if (removeResult) {
-                console.log(`✅ Successfully processed locked account removal for ${email}`);
+                console.log(`Đã xử lý xóa account bị khóa cho ${email}`);
             }
             
             throw new Error("ACCOUNT_LOCKED");
@@ -936,11 +936,11 @@ async function login(page, { email, pass, code, proxy }) {
                 await waitForPageLoad(page);
                 
             } catch (error) {
-                console.log(`❌ Account ${email} is locked (continue button check)`);
+                console.log(`Account ${email} bị khóa (kiểm tra nút Continue)`);
                 
                 const removeResult = removeLockedAccount(email);
                 if (removeResult) {
-                    console.log(`✅ Successfully processed locked account removal for ${email}`);
+                    console.log(`Đã xử lý xóa account bị khóa cho ${email}`);
                 }
                 
                 throw new Error("ACCOUNT_LOCKED");
@@ -977,7 +977,7 @@ async function login(page, { email, pass, code, proxy }) {
     
     // final page load wait removed to reduce latency
     
-    console.log(`✅ Login successful for ${email}`);
+    console.log(`Login thành công cho ${email}`);
 }
 
 // CAPTCHA handling function
@@ -996,12 +996,12 @@ async function handleCapcha(page, timeout) {
         } catch (_) { }
 
         if (!captchaForm) {
-            console.log("No captcha form detected, proceeding...");
+            console.log("Không phát hiện form CAPTCHA, tiếp tục...");
             captchaResolved = true;
             return;
         }
 
-        console.log(`Captcha detected, attempting to solve (attempt ${captchaAttempts}/${maxCaptchaAttempts})...`);
+        console.log(`Phát hiện CAPTCHA, đang thử giải (lần ${captchaAttempts}/${maxCaptchaAttempts})...`);
         
         try {
             const captchaSrc = await page.evaluate(() => {
@@ -1009,16 +1009,16 @@ async function handleCapcha(page, timeout) {
                 return captchaImage ? captchaImage.src : null;
             });
 
-            console.log("Captcha image source:", captchaSrc);
+            console.log("Nguồn ảnh CAPTCHA:", captchaSrc);
             const resCapcha = await require(path.join(__dirname, "capcha.js"))(captchaSrc);
 
             if (!resCapcha || !resCapcha.success) {
-                console.log("Captcha solution failed, retrying...");
+                console.log("Giải CAPTCHA thất bại, thử lại...");
                 continue;
             }
 
-            console.log("Captcha result:", resCapcha);
-            console.app("Captcha result:", resCapcha.captchaCode);
+            console.log("Kết quả CAPTCHA:", resCapcha);
+            console.app("Kết quả CAPTCHA:", resCapcha.captchaCode);
 
             // Click captcha field
             await puppeteer.Locator.race([
@@ -1053,7 +1053,7 @@ async function handleCapcha(page, timeout) {
                 promises.push(
                     page.waitForNavigation({ timeout: 60000 })
                         .catch(err => {
-                            console.log("Navigation timeout after CAPTCHA submission, continuing anyway");
+                            console.log("Chờ chuyển trang sau khi submit CAPTCHA bị timeout, vẫn tiếp tục");
                             return null;
                         })
                 );
@@ -1082,18 +1082,18 @@ async function handleCapcha(page, timeout) {
             try {
                 captchaForm = await page.$('form[action="/errors/validateCaptcha"] img');
                 if (captchaForm) {
-                    console.log("Captcha still present after submission, retrying...");
+                    console.log("CAPTCHA vẫn còn sau khi submit, thử lại...");
                 } else {
-                    console.log("Captcha passed successfully!");
+                    console.log("Đã vượt CAPTCHA thành công!");
                     captchaResolved = true;
                 }
             } catch (e) {
-                console.log("Error checking captcha form:", e);
+                console.log("Lỗi khi kiểm tra form CAPTCHA:", e);
                 captchaResolved = true;
             }
             
         } catch (captchaError) {
-            console.log(`Captcha handling error: ${captchaError.message}`);
+            console.log(`Lỗi khi xử lý CAPTCHA: ${captchaError.message}`);
             
             // Handle timeout in captcha
             if (captchaError.message.includes('timeout')) {

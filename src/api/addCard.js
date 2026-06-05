@@ -143,7 +143,7 @@ async function typeLikeUser(page, frameOrPage, selectors, value, label, opts = {
                 }, expected, digitsOnly);
 
                 if (verified) {
-                    console.log(`${label} typed like user: ${selector}`);
+                    console.log(`${label} đã nhập theo kiểu người dùng: ${selector}`);
                     return { ok: true, selector };
                 }
             } catch {
@@ -187,7 +187,7 @@ async function selectLikeUser(frameOrPage, selectors, value, label) {
                 }, expected);
 
                 if (verified) {
-                    console.log(`${label} selected like user: ${selector}`);
+                    console.log(`${label} đã chọn theo kiểu người dùng: ${selector}`);
                     return { ok: true, selector };
                 }
             } catch { /* try next */ }
@@ -556,12 +556,12 @@ async function waitForCardSubmitResult(page, last4, timeoutMs = 18000) {
             await new Promise(r => setTimeout(r, 1500));
             const walletState = await inspectCardSubmitState(page, last4);
             if (walletState.last4Visible || walletState.successTextVisible) {
-                console.log(`✅ Card ***${last4} added successfully (wallet redirect)`);
+                console.log(`Thẻ ***${last4} đã thêm thành công (redirect về ví)`);
                 return { success: true };
             }
             // On wallet page but card not visible → may have been rejected silently
             if (walletState.errorText) {
-                console.log(`❌ Card ***${last4} rejected: ${walletState.errorText}`);
+                console.log(`Thẻ ***${last4} bị từ chối: ${walletState.errorText}`);
                 return { success: false, error: walletState.errorText };
             }
             // Still on wallet, no error, no last4 → wait more
@@ -570,17 +570,17 @@ async function waitForCardSubmitResult(page, last4, timeoutMs = 18000) {
         const clicked = await clickAddressConfirmationIfPresent(page);
         if (clicked && !addressClicked) {
             addressClicked = true;
-            console.log(`   Address confirmation clicked: ${clicked}`);
+            console.log(`   Đã bấm xác nhận địa chỉ: ${clicked}`);
             await new Promise(r => setTimeout(r, 1500));
         }
 
         const state = await inspectCardSubmitState(page, last4);
         if (state.errorText) {
-            console.log(`❌ Card ***${last4} error: ${state.errorText.slice(0, 100)}`);
+            console.log(`Thẻ ***${last4} lỗi: ${state.errorText.slice(0, 100)}`);
             return { success: false, error: state.errorText.slice(0, 180) };
         }
         if (state.last4Visible || state.successTextVisible) {
-            console.log(`✅ Card ***${last4} added successfully`);
+            console.log(`Thẻ ***${last4} đã thêm thành công`);
             return { success: true };
         }
 
@@ -588,7 +588,7 @@ async function waitForCardSubmitResult(page, last4, timeoutMs = 18000) {
     }
 
     // Timeout — do one final wallet check
-    console.log(`⏱️ Timeout waiting for card ***${last4} — checking wallet...`);
+    console.log(`Timeout khi chờ thẻ ***${last4} - chuyển sang kiểm tra ví...`);
     try {
         await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
             waitUntil: 'domcontentloaded', timeout: 8000
@@ -596,13 +596,13 @@ async function waitForCardSubmitResult(page, last4, timeoutMs = 18000) {
         await new Promise(r => setTimeout(r, 2500));
         const walletState = await inspectCardSubmitState(page, last4);
         if (walletState.last4Visible || walletState.successTextVisible) {
-            console.log(`✅ Card ***${last4} confirmed in wallet`);
+            console.log(`Thẻ ***${last4} đã được xác nhận trong ví`);
             return { success: true };
         }
         if (walletState.errorText) return { success: false, error: walletState.errorText.slice(0, 180) };
     } catch { /* ignore */ }
 
-    console.log(`❌ Card ***${last4} not confirmed after timeout`);
+    console.log(`Thẻ ***${last4} chưa được xác nhận sau timeout`);
     return { success: false, error: 'CARD_NOT_CONFIRMED_IN_WALLET' };
 }
 
@@ -612,7 +612,7 @@ async function waitForCardSubmitResult(page, last4, timeoutMs = 18000) {
 async function clickFilledPaymentFormSubmit(page, cardInfo) {
     // ✅ FIX 2: Verify fields are actually filled before clicking submit
     const preCheck = await verifyFieldsBeforeSubmit(page);
-    console.log(`Pre-submit field check: ${JSON.stringify(preCheck)}`);
+    console.log(`Kiểm tra field trước khi submit: ${JSON.stringify(preCheck)}`);
 
     const missing = [];
     if (preCheck.card < 13)  missing.push('card');
@@ -622,7 +622,7 @@ async function clickFilledPaymentFormSubmit(page, cardInfo) {
     if (cardInfo.cvc && preCheck.cvvPresent && preCheck.cvv < 3) missing.push('cvv');
 
     if (missing.length > 0) {
-        console.log(`⚠️ Fields empty before submit: ${missing.join(', ')} — aborting submit`);
+        console.log(`Field còn trống trước khi submit: ${missing.join(', ')} - hủy submit`);
         return false;
     }
 
@@ -665,7 +665,7 @@ async function clickFilledPaymentFormSubmit(page, cardInfo) {
                 const handle = await ctx.$(result.submitSelector);
                 if (handle) {
                     await handle.click();
-                    console.log(`Payment form submit clicked — fields OK: ${JSON.stringify(preCheck)}`);
+                    console.log(`Đã bấm submit form thanh toán - field OK: ${JSON.stringify(preCheck)}`);
                     return true;
                 }
             }
@@ -680,7 +680,7 @@ async function clickFilledPaymentFormSubmit(page, cardInfo) {
 async function addCard(page, cardInfo, retryCount = 0) {
     const MAX_RETRIES = 3;
     if (retryCount >= MAX_RETRIES) {
-        console.log(`❌ Max retries (${MAX_RETRIES}) reached`);
+        console.log(`Đã đạt giới hạn thử lại (${MAX_RETRIES})`);
         return { success: false, error: 'MAX_RETRIES_EXCEEDED' };
     }
 
@@ -692,7 +692,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
         // ── Navigate to wallet ──────────────────────────────────────────
         try {
-            console.log('🔄 Ensuring we are on payment page...');
+            console.log('Đang đảm bảo đã ở trang thanh toán...');
             const url = page.url();
             if (!url.includes('yourpayments') || !url.includes('wallet')) {
                 await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
@@ -701,13 +701,13 @@ async function addCard(page, cardInfo, retryCount = 0) {
                 await new Promise(r => setTimeout(r, 3000));
             }
         } catch (err) {
-            console.log(`❌ Navigation error: ${err.message}`);
+            console.log(`Lỗi điều hướng: ${err.message}`);
             return { success: false, error: 'NAVIGATION_ERROR', shouldRetry: true };
         }
 
         // ── Step 1: Click "Add a payment method" ───────────────────────
         try {
-            console.log('📋 Step 1: Clicking Add Payment Method...');
+            console.log('Bước 1: bấm Add Payment Method...');
             let clicked = false;
 
             for (let attempt = 1; attempt <= 5 && !clicked; attempt++) {
@@ -719,7 +719,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                         page.locator('#pp-paEOaP-10'),
                     ]).setTimeout(8000).click();
                     clicked = true;
-                    console.log('   ✅ Race locator worked');
+                    console.log('   Locator race đã hoạt động');
                 } catch { /* try next */ }
 
                 if (!clicked) {
@@ -752,7 +752,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
             }
 
             if (!clicked) throw new Error('ADD_PAYMENT_METHOD_NOT_CLICKED');
-            console.log('✅ Step 1 completed');
+            console.log('Bước 1 hoàn tất');
         } catch (err) {
             return { success: false, error: err.message, step: 'add_payment_method', shouldRetry: true };
         }
@@ -761,7 +761,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
         // ── Step 2: Select "Add a credit or debit card" ────────────────
         try {
-            console.log('💳 Step 2: Selecting Credit/Debit Card...');
+            console.log('Bước 2: chọn Credit/Debit Card...');
             let clicked = false;
 
             for (let attempt = 1; attempt <= 4 && !clicked; attempt++) {
@@ -777,7 +777,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                     }
                     return false;
                 });
-                console.log(clicked ? '   ✅ Clicked add credit card button' : '   ❌ Not found, retrying...');
+                console.log(clicked ? '   Đã bấm nút thêm thẻ' : '   Không tìm thấy, thử lại...');
 
                 if (!clicked) await new Promise(r => setTimeout(r, 800));
             }
@@ -790,12 +790,12 @@ async function addCard(page, cardInfo, retryCount = 0) {
                     'iframe.apx-secure-iframe.pmts-portal-component, iframe[src*="payments"]',
                     { timeout: 10000 }
                 );
-                console.log('   ✅ Secure iframe detected');
+                console.log('   Đã phát hiện secure iframe');
             } catch { /* iframe may not appear on popup flow */ }
 
             // Extra wait for iframe content to render
             await new Promise(r => setTimeout(r, 3000));
-            console.log('✅ Step 2 completed');
+            console.log('Bước 2 hoàn tất');
         } catch (err) {
             return { success: false, error: err.message, step: 'add_credit_card', shouldRetry: true };
         }
@@ -832,7 +832,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
         // ── Step 3: Card number ────────────────────────────────────────
         try {
-            console.log('💳 Step 3: Entering card number...');
+            console.log('Bước 3: nhập số thẻ...');
             const numberSelectors = [
                 'input[autocomplete="cc-number"]',
                 'input[name="addCreditCardNumber"]',
@@ -845,19 +845,19 @@ async function addCard(page, cardInfo, retryCount = 0) {
             ];
 
             // ✅ FIX: Wait until card field actually appears in any frame before filling
-            console.log('   ⏳ Waiting for card number field to appear...');
+            console.log('   Đang chờ field số thẻ xuất hiện...');
             const fieldFound = await findFrameWithSelector(targetPage, numberSelectors, 15000);
             if (!fieldFound) {
                 // Log available frames for debugging
                 const frameUrls = page.frames().map(f => f.url()).filter(u => u && u !== 'about:blank');
-                console.log(`   ⚠️ Card field not found. Frames: ${frameUrls.map(u => u.slice(0, 80)).join(' | ')}`);
+                console.log(`   Không tìm thấy field số thẻ. Frames: ${frameUrls.map(u => u.slice(0, 80)).join(' | ')}`);
                 throw new Error('CARD_NUMBER_FIELD_NOT_FOUND');
             }
-            console.log(`   🔍 Card field in frame: ${fieldFound.selector}`);
+            console.log(`   Field số thẻ nằm trong frame: ${fieldFound.selector}`);
 
             const fill = await fillCardNumberAcrossFrames(targetPage, cardInfo.number, numberSelectors, 12000);
             if (!fill.ok) throw new Error('CARD_NUMBER_FIELD_NOT_FOUND');
-            console.log(`✅ Card number filled: ${fill.mode}`);
+            console.log(`Đã nhập số thẻ: ${fill.mode}`);
         } catch (err) {
             if (err.message.includes('detached Frame') || err.message.includes('Session closed'))
                 return { success: false, error: 'FRAME_DETACHED', step: 'enter_card_number' };
@@ -868,7 +868,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
         // ── Step 4: Cardholder name ────────────────────────────────────
         try {
-            console.log('👤 Step 4: Entering cardholder name...');
+            console.log('Bước 4: nhập tên chủ thẻ...');
             const ctx = await getIframe();
 
             // ✅ FIX 1: Use React-aware setter
@@ -882,7 +882,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                 try {
                     await typeLikeUser(targetPage, ctx, [sel], cardInfo.name, 'Cardholder name');
                     filled = true;
-                    console.log(`Name typed like user: ${sel}`);
+                    console.log(`Tên đã nhập theo kiểu người dùng: ${sel}`);
                     break;
                 } catch { /* try next */ }
             }
@@ -890,7 +890,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                 if (filled) break;
                 try {
                     const ok = await setReactInputValue(ctx, sel, cardInfo.name);
-                    if (ok) { filled = true; console.log(`✅ Name filled: ${sel}`); break; }
+                    if (ok) { filled = true; console.log(`Đã nhập tên: ${sel}`); break; }
                 } catch { /* try next */ }
             }
             // Fallback: type
@@ -902,7 +902,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                         await handle.click({ clickCount: 3 });
                         await handle.type(cardInfo.name, { delay: 30 });
                         filled = true;
-                        console.log(`✅ Name typed: ${sel}`);
+                        console.log(`Đã nhập tên: ${sel}`);
                         break;
                     } catch { /* try next */ }
                 }
@@ -918,7 +918,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
         // ── Step 5: Expiry month ───────────────────────────────────────
         try {
-            console.log('📅 Step 5: Selecting expiry month...');
+            console.log('Bước 5: chọn tháng hết hạn...');
             const ctx = await getIframe();
             const monthVal = String(Number(cardInfo.month));
             const monthSels = [
@@ -938,16 +938,16 @@ async function addCard(page, cardInfo, retryCount = 0) {
                     // ✅ FIX 1: React-aware select
                     await selectLikeUser(ctx, [sel], monthVal, 'Expiration month');
                     selected = true;
-                    console.log(`Month selected like user: ${sel}`);
+                    console.log(`Tháng đã chọn theo kiểu người dùng: ${sel}`);
                     break;
-                    if (ok) { selected = true; console.log(`✅ Month selected: ${sel}`); break; }
+                    if (ok) { selected = true; console.log(`Đã chọn tháng: ${sel}`); break; }
                 } catch { /* try next */ }
             }
             if (!selected) {
                 for (const sel of monthSels) {
                     try {
                         const ok = await setReactSelectValue(ctx, sel, monthVal);
-                        if (ok) { selected = true; console.log(`Month selected with setter: ${sel}`); break; }
+                        if (ok) { selected = true; console.log(`Đã chọn tháng bằng setter: ${sel}`); break; }
                     } catch { /* try next */ }
                 }
             }
@@ -962,7 +962,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
         // ── Step 6: Expiry year ────────────────────────────────────────
         try {
-            console.log('📅 Step 6: Selecting expiry year...');
+            console.log('Bước 6: chọn năm hết hạn...');
             const ctx = await getIframe();
             const yearVal = String(cardInfo.year);
             const yearSels = [
@@ -977,9 +977,9 @@ async function addCard(page, cardInfo, retryCount = 0) {
                 try {
                     await selectLikeUser(ctx, [sel], yearVal, 'Expiration year');
                     selected = true;
-                    console.log(`Year selected like user: ${sel}`);
+                    console.log(`Năm đã chọn theo kiểu người dùng: ${sel}`);
                     break;
-                    if (ok) { selected = true; console.log(`✅ Year selected (native): ${sel}`); break; }
+                    if (ok) { selected = true; console.log(`Đã chọn năm (native): ${sel}`); break; }
                 } catch { /* try next */ }
             }
 
@@ -987,7 +987,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                 for (const sel of yearSels) {
                     try {
                         const ok = await setReactSelectValue(ctx, sel, yearVal);
-                        if (ok) { selected = true; console.log(`Year selected with setter: ${sel}`); break; }
+                        if (ok) { selected = true; console.log(`Đã chọn năm bằng setter: ${sel}`); break; }
                     } catch { /* try next */ }
                 }
             }
@@ -1003,7 +1003,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                         if (link) { link.click(); return true; }
                         return false;
                     }, yearVal);
-                    if (selected) console.log('✅ Year selected via dropdown popup');
+                    if (selected) console.log('Đã chọn năm bằng dropdown popup');
                 } catch { /* strategy 3 */ }
             }
 
@@ -1022,7 +1022,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                     }
                     await page.keyboard.press('Enter');
                     selected = true;
-                    console.log('✅ Year selected via keyboard');
+                    console.log('Đã chọn năm bằng bàn phím');
                 } catch { /* ignore */ }
             }
 
@@ -1034,9 +1034,9 @@ async function addCard(page, cardInfo, retryCount = 0) {
                 if (cvvRequired) {
                     const cvvFill = await fillCvvAcrossFrames(targetPage, cardInfo.cvc, 8000);
                     if (!cvvFill.ok) throw new Error('CVV_FIELD_NOT_FILLED');
-                    console.log(`✅ CVV filled: ${cvvFill.mode}`);
+                    console.log(`Đã nhập CVV: ${cvvFill.mode}`);
                 } else {
-                    console.log('ℹ️ CVV field not present on this form, skipping CVV input');
+                    console.log('Form này không có field CVV, bỏ qua nhập CVV');
                 }
             }
         } catch (err) {
@@ -1049,13 +1049,13 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
         // ── Step 7: Submit ─────────────────────────────────────────────
         try {
-            console.log('🚀 Step 7: Submitting card form...');
+            console.log('Bước 7: submit form thẻ...');
 
             const submitted = await clickFilledPaymentFormSubmit(targetPage, cardInfo);
 
             if (!submitted) {
                 // If verifyFieldsBeforeSubmit found empty fields, try refilling inline
-                console.log('⚠️ Submit blocked — attempting inline refill...');
+                console.log('Submit bị chặn - thử điền lại inline...');
                 const ctx = usePopupForm ? targetPage : await getIframe().catch(() => targetPage);
 
                 // Refill text fields with real keyboard events first.
@@ -1075,7 +1075,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                 if (!retried) throw new Error('SUBMIT_BUTTON_NOT_FOUND_AFTER_REFILL');
             }
 
-            console.log('✅ Form submitted');
+            console.log('Đã submit form');
         } catch (err) {
             if (err.message.includes('detached') || err.message === 'IFRAME_INVALID')
                 return { success: false, error: 'FRAME_DETACHED', step: 'submit_card' };
@@ -1085,7 +1085,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
         await new Promise(r => setTimeout(r, 1000));
 
         // ── Step 8: Address confirmation + result wait ─────────────────
-        console.log('📍 Step 8: Waiting for card submit result...');
+        console.log('Bước 8: chờ kết quả submit thẻ...');
 
         const result = await waitForCardSubmitResult(page, cardInfo.number.slice(-4), 18000);
         if (!result.success) {
@@ -1098,10 +1098,10 @@ async function addCard(page, cardInfo, retryCount = 0) {
         }
 
         // ── Step 9: Immediate reload & status check ──
-        console.log('⏳ Waiting 2s before reload...');
+        console.log('Chờ 2 giây trước khi reload...');
         await new Promise(r => setTimeout(r, 2000));
         
-        console.log('🔄 Reloading page to verify card status...');
+        console.log('Đang reload trang để xác minh trạng thái thẻ...');
         try {
             await safePageReload(page, 30000);
             await new Promise(r => setTimeout(r, 3000));
@@ -1125,29 +1125,29 @@ async function addCard(page, cardInfo, retryCount = 0) {
             }, last4);
 
             if (imgUrl) {
-                console.log(`🔍 Card ***${last4} image URL detected: ${imgUrl}`);
+                console.log(`Phát hiện URL ảnh của thẻ ***${last4}: ${imgUrl}`);
                 const dieUrls = [
                     'https://m.media-amazon.com/images/I/41MGiaNMk5L._SL85_.png',
                     'https://m.media-amazon.com/images/I/81NBfFByidL._SL85_.png'
                 ];
                 if (dieUrls.includes(imgUrl)) {
-                    console.log(`❌ Card ***${last4} is DIE (matches restricted image: ${imgUrl})`);
+                    console.log(`Thẻ ***${last4} là DIE (khớp ảnh bị hạn chế: ${imgUrl})`);
                     return { success: false, error: 'CARD_DIE', img: imgUrl };
                 } else {
-                    console.log(`✅ Card ***${last4} is LIVE (image: ${imgUrl})`);
+                    console.log(`Thẻ ***${last4} là LIVE (ảnh: ${imgUrl})`);
                     return { success: true, img: imgUrl };
                 }
             } else {
-                console.log(`⚠️ Could not find card ***${last4} in wallet scroller after reload`);
+                console.log(`Không tìm thấy thẻ ***${last4} trong ví sau khi reload`);
             }
         } catch (err) {
-            console.log(`⚠️ Error checking card status: ${err.message}`);
+            console.log(`Lỗi khi kiểm tra trạng thái thẻ: ${err.message}`);
         }
 
         return { success: true };
 
     } catch (err) {
-        console.error('Error in addCard:', err.message);
+        console.error('Lỗi trong addCard:', err.message);
 
         if (err.message === 'FRAME_DETACHED' || err.message.includes('detached Frame') || err.message.includes('Session closed')) {
             return { success: false, error: 'FRAME_DETACHED', step: 'frame_detached', shouldRestart: true };

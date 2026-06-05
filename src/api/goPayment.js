@@ -11,7 +11,7 @@ async function go(page) {
             height: 684
         });
     } catch (error) {
-        console.log("Error setting viewport:", error.message);
+        console.log("Lỗi khi đặt viewport:", error.message);
     }
     
     try {
@@ -35,12 +35,12 @@ async function go(page) {
             });
         await Promise.all(promises);
     } catch (error) {
-        console.log("Error clicking Your Account, trying alternative navigation...");
+        console.log("Lỗi khi bấm Your Account, thử mở trang thay thế...");
         // Try direct URL navigation as fallback
         try {
             await page.goto('https://www.amazon.com/gp/css/homepage.html', { waitUntil: 'networkidle0' });
         } catch (navError) {
-            return { error: 'Failed to navigate to Your Account page' };
+            return { error: 'Không thể mở trang Your Account' };
         }
     }
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -50,7 +50,7 @@ async function go(page) {
         const elementExists = await targetPage.$('[data-card-identifier="PrimeBusiness"]') !== null;
         if (!elementExists) {
             return {
-                error: 'The account has not participated in Amazon Business!'
+                error: 'Account chưa tham gia Amazon Business!'
             };
         }
     }

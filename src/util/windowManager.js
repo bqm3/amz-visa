@@ -39,7 +39,7 @@ class WindowManager {
                     screenHeight = detectedHeight;
                     console.log(`📺 Detected screen: ${screenWidth}x${screenHeight}`);
                 } else {
-                    console.log('❌ Could not detect screen resolution, using fallback');
+                    console.log('Không thể phát hiện độ phân giải màn hình, dùng kích thước dự phòng');
                 }
                 
             } else if (process.platform === 'darwin') {

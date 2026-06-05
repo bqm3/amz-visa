@@ -58,7 +58,7 @@ function loadCheckedCards() {
             checkedCards.add(cardKey(line));
         }
     } catch (error) {
-        console.log(`Could not load checkcard.txt: ${error.message}`);
+        console.log(`Không thể tải checkcard.txt: ${error.message}`);
     }
 }
 
@@ -72,7 +72,7 @@ function initialize(cardLines, force = false) {
         .filter(card => !checkedCards.has(card.key));
     initialized = true;
 
-    console.app(`Shared card queue initialized: ${queue.length} unclaimed card(s), ${checkedCards.size} checked key(s)`);
+    console.app(`Đã khởi tạo hàng đợi thẻ dùng chung: ${queue.length} thẻ chưa claim, ${checkedCards.size} thẻ đã kiểm tra`);
 }
 
 function claimNextCard(owner = '') {
@@ -80,13 +80,13 @@ function claimNextCard(owner = '') {
         const card = queue.shift();
 
         if (checkedCards.has(card.key)) {
-            console.app(`Skip card ***${card.number.slice(-4)} because it is already in checkcard.txt`);
+            console.app(`Bỏ qua thẻ ***${card.number.slice(-4)} vì đã có trong checkcard.txt`);
             continue;
         }
 
         checkedCards.add(card.key);
         fs.appendFileSync(checkCardFilePath, `${card.key}\n`, 'utf8');
-        console.app(`CLAIM card ***${card.number.slice(-4)}${owner ? ` for ${owner}` : ''}`);
+        console.app(`Claim thẻ ***${card.number.slice(-4)}${owner ? ` cho ${owner}` : ''}`);
         return card;
     }
 

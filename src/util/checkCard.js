@@ -85,7 +85,7 @@ function loadLockedAccountEmails() {
             });
         }
     } catch (e) {
-        console.log(`Could not load locked_accounts.txt: ${e.message}`);
+        console.log(`Không thể tải locked_accounts.txt: ${e.message}`);
     }
 
     return lockedAccounts;
@@ -100,7 +100,7 @@ function markAccountLocked(email, reason = 'ACCOUNT_LOCKED') {
     try {
         saveDataNow();
     } catch (e) {
-        console.log(`Could not save locked account to data.json: ${e.message}`);
+        console.log(`Không thể lưu account bị khóa vào data.json: ${e.message}`);
     }
 
     try {
@@ -111,7 +111,7 @@ function markAccountLocked(email, reason = 'ACCOUNT_LOCKED') {
             fs.appendFileSync(lockedAccountsFilePath, `${new Date().toISOString()}: ${email} - ${reason} - AUTO_DETECTED\n`, 'utf8');
         }
     } catch (e) {
-        console.log(`Could not write locked account: ${e.message}`);
+        console.log(`Không thể ghi account bị khóa: ${e.message}`);
     }
 }
 
@@ -150,10 +150,10 @@ async function switchToNextAccount(chromeIndex, browser, proxy, delay = 5000) {
     await closeBrowserSafe(browser);
     const nextAcc = getNextAccount();
     if (nextAcc) {
-        console.app(`Chrome ${chromeIndex + 1}: Switching to next account...`);
+        console.app(`Chrome ${chromeIndex + 1}: chuyển sang account tiếp theo...`);
         setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), delay);
     } else {
-        console.app(`Chrome ${chromeIndex + 1}: No more accounts available`);
+        console.app(`Chrome ${chromeIndex + 1}: đã hết account khả dụng`);
     }
 }
 
@@ -170,10 +170,10 @@ function loadCheckCardFile() {
                 checkedCardsSet.add(line);
                 checkedCardsSet.add(getCardKey(line));
             });
-            console.log(`📋 Loaded ${checkedCardsSet.size} cards from checkcard.txt`);
+            console.log(`Đã tải ${checkedCardsSet.size} thẻ từ checkcard.txt`);
         }
     } catch (e) {
-        console.log(`⚠️ Could not load checkcard.txt: ${e.message}`);
+        console.log(`Không thể tải checkcard.txt: ${e.message}`);
     }
 }
 
@@ -194,9 +194,9 @@ function writeCardToCheckFile(card) {
     checkedCardsSet.add(cardKey);
     try {
         fs.appendFileSync(checkCardFilePath, cardKey + '\n', 'utf8');
-        console.app(`CLAIM card ***${getCardLast4(card)} -> checkcard.txt`);
+        console.app(`Claim thẻ ***${getCardLast4(card)} -> checkcard.txt`);
     } catch (e) {
-        console.log(`⚠️ Could not write to checkcard.txt: ${e.message}`);
+        console.log(`Không thể ghi vào checkcard.txt: ${e.message}`);
     }
 }
 
@@ -211,13 +211,13 @@ function getNextCard() {
         
         // Check if card already in checkcard.txt → skip
         if (isCardInCheckFile(card)) {
-            console.log(`Card ***${getCardLast4(card)} already in checkcard.txt, skipping`);
+            console.log(`Thẻ ***${getCardLast4(card)} đã có trong checkcard.txt, bỏ qua`);
             continue;
         }
         
         // Skip already processed cards (from cardTracker)
         if (cardTracker.isProcessed(card)) {
-            console.log(`Card ***${getCardLast4(card)} already processed, skipping`);
+            console.log(`Thẻ ***${getCardLast4(card)} đã xử lý trước đó, bỏ qua`);
             continue;
         }
         
@@ -236,31 +236,31 @@ async function checkCard() {
         numChrome = global.uiConfig.numChrome || 1;
         listChild = global.uiConfig.accounts || [];
         listCards = global.uiConfig.cards || [];
-        console.log(`📋 Using UI config: ${numChrome} Chrome, ${listChild.length} accounts, ${listCards.length} cards`);
+        console.log(`Dùng cấu hình UI: ${numChrome} Chrome, ${listChild.length} account, ${listCards.length} thẻ`);
     } else {
         // Fallback: read from files
         try {
             listChild = fs.readFileSync(path.join(__dirname, "..", "data", 'acc.txt'), 'utf8')
                 .replaceAll("\r", '').split("\n").map(l => l.trim()).filter(l => l.length > 0);
         } catch (e) {
-            console.log(`❌ Could not load acc.txt: ${e.message}`);
+            console.log(`Không thể tải acc.txt: ${e.message}`);
             listChild = [];
         }
         try {
             listCards = fs.readFileSync(path.join(__dirname, "..", "data", 'card.txt'), 'utf8')
                 .replaceAll("\r", '').split("\n").map(l => l.trim()).filter(l => l.length > 0);
         } catch (e) {
-            console.log(`❌ Could not load card.txt: ${e.message}`);
+            console.log(`Không thể tải card.txt: ${e.message}`);
             listCards = [];
         }
     }
 
     if (!listChild.length) {
-        console.app("❌ No accounts found");
+        console.app("Không tìm thấy account");
         return;
     }
     if (!listCards.length) {
-        console.app("❌ No cards found");
+        console.app("Không tìm thấy thẻ");
         return;
     }
 
@@ -272,11 +272,11 @@ async function checkCard() {
         return !lockedAccounts.has(email);
     });
 
-    console.log(`🔒 Accounts: ${availableAccounts.length} available, ${listChild.length - availableAccounts.length} locked`);
-    console.app(`🔒 Accounts: ${availableAccounts.length} available, ${listChild.length - availableAccounts.length} locked`);
+    console.log(`Account: ${availableAccounts.length} khả dụng, ${listChild.length - availableAccounts.length} bị khóa`);
+    console.app(`Account: ${availableAccounts.length} khả dụng, ${listChild.length - availableAccounts.length} bị khóa`);
 
     if (!availableAccounts.length) {
-        console.app("❌ No available (non-locked) accounts");
+        console.app("Không còn account khả dụng chưa bị khóa");
         return;
     }
 
@@ -290,15 +290,15 @@ async function checkCard() {
     // ✅ Setup shared card queue - all Chrome instances share one queue
     sharedCardQueue = [...listCards];
 
-    console.log(`📋 Shared card queue: ${sharedCardQueue.length} total cards`);
-    console.app(`📋 Shared card queue: ${sharedCardQueue.length} total cards, ${checkedCardsSet.size} already checked`);
+    console.log(`Hàng đợi thẻ dùng chung: tổng ${sharedCardQueue.length} thẻ`);
+    console.app(`Hàng đợi thẻ dùng chung: tổng ${sharedCardQueue.length} thẻ, ${checkedCardsSet.size} thẻ đã kiểm tra`);
 
     // Load proxies
     try {
         listProxy = fs.readFileSync(path.join(__dirname, "..", "data", 'proxies.txt'), 'utf8')
             .replaceAll("\r", '').split("\n").map(line => line.trim()).filter(line => line.length > 0);
     } catch (err) {
-        console.log(`⚠️ Could not load proxies.txt: ${err.message}`);
+        console.log(`Không thể tải proxies.txt: ${err.message}`);
         listProxy = [];
     }
 
@@ -320,7 +320,7 @@ async function checkCard() {
     // ✅ RESET WINDOW POSITIONS AT START
     windowManager.reset();
 
-    console.app(`🚀 Starting card check: ${totalCards} cards across ${numChrome} Chrome instances`);
+    console.app(`Bắt đầu check thẻ: ${totalCards} thẻ trên ${numChrome} Chrome`);
 
     // ✅ CREATE CHROME INSTANCES - all share the same card queue
     for (let i = 0; i < numChrome; i++) {
@@ -330,7 +330,7 @@ async function checkCard() {
             const proxyLine = listProxy[proxyIndex];
             let [host, port, user, pass] = proxyLine.split(':');
             proxy = { host, port, user, pass };
-            console.log(`🔗 Chrome ${i + 1}: Using proxy index ${proxyIndex + 1}`);
+            console.log(`Chrome ${i + 1}: dùng proxy số ${proxyIndex + 1}`);
         }
 
         launchChromeInstance(i, proxy);
@@ -364,7 +364,7 @@ function recycleAccount(accountStr) {
 async function launchChromeInstance(chromeIndex, proxy) {
     const accountStr = getNextAccount();
     if (!accountStr) {
-        console.app(`❌ Chrome ${chromeIndex + 1}: No accounts available`);
+        console.app(`Chrome ${chromeIndex + 1}: không còn account khả dụng`);
         return;
     }
 
@@ -384,17 +384,17 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
     let [email, pass, secret] = accountStr.split("|");
 
     if (data.childCount[email] >= 80) {
-        console.app(`⏭️ Chrome ${chromeIndex + 1}: Max cards reached for ${email}, trying next account`);
+        console.app(`Chrome ${chromeIndex + 1}: ${email} đã đạt giới hạn thẻ, thử account tiếp theo`);
         const nextAcc = getNextAccount();
         if (nextAcc) {
             return startAccountSession(chromeIndex, nextAcc, proxy, 0);
         } else {
-            console.app(`❌ Chrome ${chromeIndex + 1}: No more accounts available`);
+            console.app(`Chrome ${chromeIndex + 1}: đã hết account khả dụng`);
             return;
         }
     }
 
-    console.log(`🔐 Chrome ${chromeIndex + 1}: Starting session for ${email} (${data.childCount[email] || 0}/80)`);
+    console.log(`Chrome ${chromeIndex + 1}: bắt đầu phiên cho ${email} (${data.childCount[email] || 0}/80)`);
     console.app(`🔐 Chrome ${chromeIndex + 1}: ${email} (${data.childCount[email] || 0}/80)`);
 
     const windowPosition = windowManager.getNextPosition();
@@ -407,7 +407,7 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
     }
 
     if (proxy) {
-        console.log(`🌐 Chrome ${chromeIndex + 1}: Testing proxy ${proxy.user}@${proxy.host}:${proxy.port}`);
+        console.log(`Chrome ${chromeIndex + 1}: kiểm tra proxy ${proxy.user}@${proxy.host}:${proxy.port}`);
     }
 
     const userDataDir = path.join(dataDir, 'chrome-profiles', `scan-${Date.now()}-${chromeIndex + 1}-${Math.random().toString(16).slice(2)}`);
@@ -488,13 +488,13 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
     } catch (launchError) {
         if (String(launchError.message || '').includes('Could not find Chrome')) {
             const installedChrome = puppeteer.executablePath();
-            console.log(`⚠️ Chrome ${chromeIndex + 1}: Retrying with executablePath: ${installedChrome}`);
+            console.log(`Chrome ${chromeIndex + 1}: thử lại với executablePath: ${installedChrome}`);
             browser = await puppeteer.launch({
                 ...launchOptions,
                 executablePath: installedChrome
             });
         } else {
-            console.app(`❌ Chrome ${chromeIndex + 1}: Launch failed - ${launchError.message}`);
+            console.app(`Chrome ${chromeIndex + 1}: mở Chrome thất bại - ${launchError.message}`);
             // Try next account
             const nextAcc = getNextAccount();
             if (nextAcc) {
@@ -529,9 +529,9 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
             const proxyIP = await page.evaluate(() => {
                 try { return JSON.parse(document.body.innerText).origin; } catch { return 'Unknown'; }
             });
-            console.app(`✅ Chrome ${chromeIndex + 1}: Proxy IP: ${proxyIP}`);
+            console.app(`Chrome ${chromeIndex + 1}: IP proxy: ${proxyIP}`);
         } catch (proxyTestError) {
-            console.app(`❌ Chrome ${chromeIndex + 1}: Proxy failed for ${email}`);
+            console.app(`Chrome ${chromeIndex + 1}: proxy lỗi cho ${email}`);
             await browser.close();
             const nextAcc = getNextAccount();
             if (nextAcc) {
@@ -553,13 +553,13 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
         await require(path.join(__dirname, "..", "api", "login.js"))(page, form);
     } catch (loginError) {
         if (isAccountLockedError(loginError) || await isAccountLockedPage(page)) {
-            console.app(`Chrome ${chromeIndex + 1}: Account locked for ${email}`);
+            console.app(`Chrome ${chromeIndex + 1}: account bị khóa ${email}`);
             markAccountLocked(email, 'ACCOUNT_LOCKED');
             await switchToNextAccount(chromeIndex, browser, proxy, 5000);
             return;
         }
 
-        console.app(`❌ Chrome ${chromeIndex + 1}: Login failed for ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: login thất bại cho ${email}`);
         await browser.close();
         // Try next account with same Chrome instance
         const nextAcc = getNextAccount();
@@ -573,7 +573,7 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
 
     // Check if account suspended/locked
     if (await isAccountLockedPage(page)) {
-        console.app(`Chrome ${chromeIndex + 1}: Account suspended: ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: account bị tạm ngưng ${email}`);
         markAccountLocked(email, 'ACCOUNT_LOCKED');
         await switchToNextAccount(chromeIndex, browser, proxy, 5000);
         return;
@@ -600,15 +600,15 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
                 await page.goto(linkNow, { waitUntil: 'domcontentloaded', timeout: 30000 });
             } catch (navError) {}
         } catch (addressError) {
-            console.app(`Chrome ${chromeIndex + 1}: Address error for ${email}`);
+            console.app(`Chrome ${chromeIndex + 1}: lỗi thêm địa chỉ cho ${email}`);
         }
     } else {
-        console.app(`Chrome ${chromeIndex + 1}: Skip address for ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: bỏ qua bước thêm địa chỉ cho ${email}`);
     }
 
     let res = await require(path.join(__dirname, "..", "api", "goPayment.js"))(page);
     if (res.error) {
-        console.app(`❌ Chrome ${chromeIndex + 1}: Payment page error for ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: lỗi mở trang thanh toán cho ${email}`);
         await browser.close();
         const nextAcc = getNextAccount();
         if (nextAcc) {
@@ -624,27 +624,27 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
 
     } catch (sessionError) {
         // ✅ TOP-LEVEL CATCH: Prevent Chrome crash on any unhandled error
-        console.app(`❌ Chrome ${chromeIndex + 1}: Session error - ${sessionError.message}`);
-        console.log(`❌ Chrome ${chromeIndex + 1}: Full error:`, sessionError);
+        console.app(`Chrome ${chromeIndex + 1}: lỗi phiên làm việc - ${sessionError.message}`);
+        console.log(`Chrome ${chromeIndex + 1}: lỗi đầy đủ:`, sessionError);
 
         // Try to close browser if still open
         try {
             if (browser) await browser.close();
         } catch (closeErr) {
-            console.log(`⚠️ Chrome ${chromeIndex + 1}: Could not close browser: ${closeErr.message}`);
+            console.log(`Chrome ${chromeIndex + 1}: không thể đóng trình duyệt: ${closeErr.message}`);
         }
 
         // Retry with next account if available
         if (retryCount < MAX_RETRIES) {
             const nextAcc = getNextAccount();
             if (nextAcc) {
-                console.app(`🔄 Chrome ${chromeIndex + 1}: Retrying with next account (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+                console.app(`Chrome ${chromeIndex + 1}: thử lại với account tiếp theo (lần ${retryCount + 1}/${MAX_RETRIES})...`);
                 setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy, retryCount + 1), 10000);
             } else {
-                console.app(`❌ Chrome ${chromeIndex + 1}: No more accounts available after error`);
+                console.app(`Chrome ${chromeIndex + 1}: hết account khả dụng sau lỗi`);
             }
         } else {
-            console.app(`❌ Chrome ${chromeIndex + 1}: Max retries (${MAX_RETRIES}) reached, stopping this Chrome instance`);
+            console.app(`Chrome ${chromeIndex + 1}: đã đạt giới hạn thử lại (${MAX_RETRIES}), dừng Chrome này`);
         }
     }
 }
@@ -658,7 +658,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
     }
 
     if (await isAccountLockedPage(page)) {
-        console.app(`Chrome ${chromeIndex + 1}: Account locked while processing ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: account bị khóa khi đang xử lý ${email}`);
         markAccountLocked(email, 'ACCOUNT_LOCKED');
         await switchToNextAccount(chromeIndex, browser, proxy, 5000);
         return;
@@ -670,13 +670,13 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
     const hasCardsToVerify = Object.keys(global.temp.checkCard[chromeIndex] || {}).length > 0;
 
     if (!peekHasCards && !hasCardsToVerify) {
-        console.app(`🏁 Chrome ${chromeIndex + 1}: All cards processed and verified`);
+        console.app(`Chrome ${chromeIndex + 1}: đã xử lý và xác minh xong toàn bộ thẻ`);
         await browser.close();
         return;
     }
 
     if (!peekHasCards && hasCardsToVerify) {
-        console.app(`🔄 Chrome ${chromeIndex + 1}: No more cards, verifying ${Object.keys(global.temp.checkCard[chromeIndex]).length} remaining`);
+        console.app(`Chrome ${chromeIndex + 1}: hết thẻ mới, đang xác minh ${Object.keys(global.temp.checkCard[chromeIndex]).length} thẻ còn lại`);
         updateRemainingCardCount();
         await new Promise(resolve => setTimeout(resolve, global.data.settings.checkAfter || 10000));
         return checkWallet(page, browser, email, chromeIndex, proxy, accountStr);
@@ -684,25 +684,25 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
 
     const currentCount = data.childCount[email] || 0;
     if (currentCount >= 80) {
-        console.app(`⏭️ Chrome ${chromeIndex + 1}: Max cards for ${email}, switching account`);
+        console.app(`Chrome ${chromeIndex + 1}: ${email} đã đạt giới hạn thẻ, đổi account`);
         await browser.close();
         const nextAcc = getNextAccount();
         if (nextAcc) {
             return startAccountSession(chromeIndex, nextAcc, proxy);
         } else {
-            console.app(`❌ Chrome ${chromeIndex + 1}: No more accounts, cards remaining in shared queue`);
+            console.app(`Chrome ${chromeIndex + 1}: hết account nhưng hàng đợi vẫn còn thẻ`);
             return;
         }
     }
 
     const remainingInQueue = sharedCardQueue.length;
-    console.app(`➕ Chrome ${chromeIndex + 1}: Adding cards (${email}, ${currentCount}/80, ~${remainingInQueue} cards left in queue)`);
+    console.app(`Chrome ${chromeIndex + 1}: đang thêm thẻ (${email}, ${currentCount}/80, còn khoảng ${remainingInQueue} thẻ trong hàng đợi)`);
 
     // Process one card per account turn so Chrome 1/2/3 claim card 1/2/3,
     // then whichever account finishes first claims the next card.
     for (let i = 0; i < 1; i++) {
         if (await isAccountLockedPage(page)) {
-            console.app(`Chrome ${chromeIndex + 1}: Account locked while adding cards for ${email}`);
+            console.app(`Chrome ${chromeIndex + 1}: account bị khóa khi thêm thẻ cho ${email}`);
             markAccountLocked(email, 'ACCOUNT_LOCKED');
             await switchToNextAccount(chromeIndex, browser, proxy, 5000);
             return;
@@ -710,12 +710,12 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
 
         const card = getNextCard(); // Get next card from shared queue (with checkcard.txt validation)
         if (!card) {
-            console.app(`📋 Chrome ${chromeIndex + 1}: No more cards available in shared queue`);
+            console.app(`Chrome ${chromeIndex + 1}: không còn thẻ trong hàng đợi dùng chung`);
             break;
         }
         const parsedCard = parseCardLine(card);
         if (!parsedCard) {
-            console.app(`Chrome ${chromeIndex + 1}: Invalid card line skipped`);
+            console.app(`Chrome ${chromeIndex + 1}: bỏ qua dòng thẻ sai định dạng`);
             continue;
         }
         let form = {
@@ -725,7 +725,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
             name: parsedCard.name,
             cvc: parsedCard.cvc
         };
-        console.app(`Chrome ${chromeIndex + 1}: Input card ***${form.number.slice(-4)} ${form.month}/${form.year} for ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: nhập thẻ ***${form.number.slice(-4)} ${form.month}/${form.year} cho ${email}`);
 
         const getAddCardErrorCode = (result) => {
             if (!result) return 'UNKNOWN';
@@ -739,7 +739,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
             addRes = await require(path.join(__dirname, "..", "api", "addCard.js"))(page, form);
         } catch (error) {
             if (isAccountLockedError(error) || await isAccountLockedPage(page)) {
-                console.app(`Chrome ${chromeIndex + 1}: Account locked after add card for ${email}`);
+                console.app(`Chrome ${chromeIndex + 1}: account bị khóa sau khi thêm thẻ cho ${email}`);
                 markAccountLocked(email, 'ACCOUNT_LOCKED');
                 await switchToNextAccount(chromeIndex, browser, proxy, 5000);
                 return;
@@ -747,7 +747,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
             addRes = { success: false, error: error.message || 'ADD_CARD_ERROR' };
         }
         if (isAccountLockedError(addRes) || await isAccountLockedPage(page)) {
-            console.app(`Chrome ${chromeIndex + 1}: Account locked after add card for ${email}`);
+            console.app(`Chrome ${chromeIndex + 1}: account bị khóa sau khi thêm thẻ cho ${email}`);
             markAccountLocked(email, 'ACCOUNT_LOCKED');
             await switchToNextAccount(chromeIndex, browser, proxy, 5000);
             return;
@@ -774,7 +774,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
                 }
             } catch (error) {
                 if (error.name !== 'TimeoutError') {
-                    console.log(`WARN Chrome ${chromeIndex + 1}: Reload error: ${error.message}`);
+                    console.log(`Cảnh báo Chrome ${chromeIndex + 1}: lỗi reload: ${error.message}`);
                 }
             }
 
@@ -782,7 +782,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
                 addRes = await require(path.join(__dirname, "..", "api", "addCard.js"))(page, form);
             } catch (error) {
                 if (isAccountLockedError(error) || await isAccountLockedPage(page)) {
-                    console.app(`Chrome ${chromeIndex + 1}: Account locked after add card retry for ${email}`);
+                    console.app(`Chrome ${chromeIndex + 1}: account bị khóa sau khi thử thêm thẻ lại cho ${email}`);
                     markAccountLocked(email, 'ACCOUNT_LOCKED');
                     await switchToNextAccount(chromeIndex, browser, proxy, 5000);
                     return;
@@ -790,7 +790,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
                 addRes = { success: false, error: error.message || 'ADD_CARD_ERROR' };
             }
             if (isAccountLockedError(addRes) || await isAccountLockedPage(page)) {
-                console.app(`Chrome ${chromeIndex + 1}: Account locked after add card retry for ${email}`);
+                console.app(`Chrome ${chromeIndex + 1}: account bị khóa sau khi thử thêm thẻ lại cho ${email}`);
                 markAccountLocked(email, 'ACCOUNT_LOCKED');
                 await switchToNextAccount(chromeIndex, browser, proxy, 5000);
                 return;
@@ -823,7 +823,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
                 fs.writeFileSync(path.join(__dirname, "..", "data", 'data.json'), JSON.stringify(data, null, 2), 'utf8');
                 saveRemainingCards();
             } else {
-                console.app(`❌ Chrome ${chromeIndex + 1}: Card add failed ***${card.slice(-4)}`);
+                console.app(`Chrome ${chromeIndex + 1}: thêm thẻ thất bại ***${card.slice(-4)}`);
                 // Put card back to end of queue for retry
                 // cardQueue.push(card); // Optional: retry later
             }
@@ -859,7 +859,7 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
 
     updateRemainingCardCount();
 
-    console.app(`⏳ Chrome ${chromeIndex + 1}: Waiting ${(global.data.settings.checkAfter || 10000) / 1000}s for ${email}`);
+    console.app(`Chrome ${chromeIndex + 1}: chờ ${(global.data.settings.checkAfter || 10000) / 1000}s cho ${email}`);
     await new Promise(resolve => setTimeout(resolve, global.data.settings.checkAfter || 10000));
 
     checkWallet(page, browser, email, chromeIndex, proxy, accountStr);
@@ -870,10 +870,10 @@ async function processCardQueue(page, browser, email, chromeIndex, proxy, accoun
  */
 async function checkWallet(page, browser, email, chromeIndex, proxy, accountStr) {
     try {
-        console.app(`🔍 Chrome ${chromeIndex + 1}: Checking wallet for ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: đang kiểm tra ví cho ${email}`);
 
         if (await isAccountLockedPage(page)) {
-            console.app(`Chrome ${chromeIndex + 1}: Account locked while checking wallet for ${email}`);
+            console.app(`Chrome ${chromeIndex + 1}: account bị khóa khi kiểm tra ví cho ${email}`);
             markAccountLocked(email, 'ACCOUNT_LOCKED');
             await switchToNextAccount(chromeIndex, browser, proxy, 5000);
             return;
@@ -885,7 +885,7 @@ async function checkWallet(page, browser, email, chromeIndex, proxy, accountStr)
         });
 
         if (await isAccountLockedPage(page)) {
-            console.app(`Chrome ${chromeIndex + 1}: Account locked after wallet reload for ${email}`);
+            console.app(`Chrome ${chromeIndex + 1}: account bị khóa sau khi reload ví cho ${email}`);
             markAccountLocked(email, 'ACCOUNT_LOCKED');
             await switchToNextAccount(chromeIndex, browser, proxy, 5000);
             return;
@@ -1001,11 +1001,11 @@ async function checkWallet(page, browser, email, chromeIndex, proxy, accountStr)
             cardIndex++;
         }
 
-        console.app(`📊 Chrome ${chromeIndex + 1}: Wallet check done - ${processedCards} processed, ${removedCards} removed`);
+        console.app(`Chrome ${chromeIndex + 1}: kiểm tra ví xong - ${processedCards} thẻ đã xử lý, ${removedCards} thẻ đã xóa`);
 
         const remainingTempCards = Object.keys(global.temp.checkCard[chromeIndex] || {}).length;
         if (remainingTempCards > 0) {
-            console.app(`🔄 Chrome ${chromeIndex + 1}: ${remainingTempCards} cards remaining`);
+            console.app(`Chrome ${chromeIndex + 1}: còn ${remainingTempCards} thẻ`);
             return processCardQueue(page, browser, email, chromeIndex, proxy, accountStr);
         } else {
             return processCardQueue(page, browser, email, chromeIndex, proxy, accountStr);
@@ -1013,13 +1013,13 @@ async function checkWallet(page, browser, email, chromeIndex, proxy, accountStr)
 
     } catch (error) {
         if (isAccountLockedError(error) || await isAccountLockedPage(page)) {
-            console.app(`Chrome ${chromeIndex + 1}: Account locked during wallet check for ${email}`);
+            console.app(`Chrome ${chromeIndex + 1}: account bị khóa trong lúc kiểm tra ví cho ${email}`);
             markAccountLocked(email, 'ACCOUNT_LOCKED');
             await switchToNextAccount(chromeIndex, browser, proxy, 5000);
             return;
         }
 
-        console.app(`❌ Chrome ${chromeIndex + 1}: Wallet check error for ${email} - ${error.message}`);
+        console.app(`Chrome ${chromeIndex + 1}: lỗi kiểm tra ví cho ${email} - ${error.message}`);
         await new Promise(resolve => setTimeout(resolve, 5000));
         return processCardQueue(page, browser, email, chromeIndex, proxy, accountStr);
     }
@@ -1058,7 +1058,7 @@ async function clearExistingCards(page, email, chromeIndex) {
 
         if (existingCardCount === 0) return;
 
-        console.app(`🗑️ Chrome ${chromeIndex + 1}: Removing ${existingCardCount} existing cards for ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: đang xóa ${existingCardCount} thẻ hiện có cho ${email}`);
 
         let removedCount = 0;
         let maxRetries = 10;
@@ -1103,11 +1103,11 @@ async function clearExistingCards(page, email, chromeIndex) {
             }
         }
 
-        console.app(`✅ Chrome ${chromeIndex + 1}: Cleared ${removedCount}/${existingCardCount} cards for ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: đã xóa ${removedCount}/${existingCardCount} thẻ cho ${email}`);
         await new Promise(resolve => setTimeout(resolve, 2000));
 
     } catch (error) {
-        console.app(`❌ Chrome ${chromeIndex + 1}: Clear cards error for ${email}`);
+        console.app(`Chrome ${chromeIndex + 1}: lỗi khi xóa thẻ cho ${email}`);
     }
 }
 
