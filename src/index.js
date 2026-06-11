@@ -2,7 +2,7 @@
 const path = require('path');
 const { exec } = require('child_process');
 const puppeteer = require('puppeteer');
-const windowManager = require('./util/windowManager'); // âœ… ADD IMPORT
+const windowManager = require('./util/windowManager');
 
 const today = new Date();
 const localYear = today.getFullYear();
@@ -490,7 +490,7 @@ function createMainWindow(centralWidget) {
     terminal.setReadOnly(true);
     terminal.setProperty("class", "terminal");
     terminal.setMinimumHeight(150);
-    terminal.setText("Terminal ready. Waiting for card information...");
+    terminal.setText("Terminal sẵn sàng. Đang chờ thông tin thẻ...");
 
     // Helper functions to add text and auto-scroll
     const appendToTerminal = (text) => {
@@ -573,7 +573,7 @@ function createMainWindow(centralWidget) {
 
         exec(`notepad "${cardLiveTitle}"`, (err) => {
             if (err) {
-                appendToTerminal(terminal.toPlainText() + "\nError opening live.txt: " + err.message);
+                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở live.txt: " + err.message);
             }
         });
     });
@@ -583,13 +583,13 @@ function createMainWindow(centralWidget) {
 
         exec(`notepad "${cardDieTitle}"`, (err) => {
             if (err) {
-                appendToTerminal(terminal.toPlainText() + "\nError opening die.txt: " + err.message);
+                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở die.txt: " + err.message);
             }
         });
     });    
     scanButton.addEventListener('clicked', async () => {
         if (isProcessRunning) {
-            appendToTerminal(terminal.toPlainText() + "\n" + "⚠️ Another process is already running. Please wait...");
+            appendToTerminal(terminal.toPlainText() + "\n" + "Đang có tiến trình khác chạy. Vui lòng chờ...");
             return;
         }
         
@@ -606,18 +606,18 @@ function createMainWindow(centralWidget) {
         global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
         global.data.settings.addAddress = addAddressCheckbox.isChecked();
         
-        // âœ… RESET WINDOW POSITIONS BEFORE STARTING
+        // Reset vị trí cửa sổ trước khi bắt đầu.
         windowManager.reset();
         
-        appendToTerminal(terminal.toPlainText() + "\n" + `ðŸªŸ Window grid initialized for card scanning...`);
-        appendToTerminal(terminal.toPlainText() + "\n" + `ðŸ"Š Scanning ${global.data.cardTotal || 0} cards with ${Math.max(value, 1)}s delay...`);
+        appendToTerminal(terminal.toPlainText() + "\n" + `Đã khởi tạo lưới cửa sổ cho scan thẻ...`);
+        appendToTerminal(terminal.toPlainText() + "\n" + `Đang scan ${global.data.cardTotal || 0} thẻ, delay ${Math.max(value, 1)} giây...`);
         
         try {
             await require(path.join(__dirname, "util", "checkCard.js"))();
-            appendToTerminal(terminal.toPlainText() + "\n" + "✅ Card scan completed!");
+            appendToTerminal(terminal.toPlainText() + "\n" + "Đã scan thẻ xong!");
         } catch (error) {
-            console.error("Error during card scan:", error);
-            appendToTerminal(terminal.toPlainText() + "\n" + "Error during card scan: " + error.message);
+            console.error("Lỗi trong lúc scan thẻ:", error);
+            appendToTerminal(terminal.toPlainText() + "\n" + "Lỗi trong lúc scan thẻ: " + error.message);
         } finally {
             isProcessRunning = false;
             disableButtons(false);
@@ -626,7 +626,7 @@ function createMainWindow(centralWidget) {
 
     normalLoginButton.addEventListener('clicked', async () => {
         if (isProcessRunning) {
-            appendToTerminal(terminal.toPlainText() + "\n" + "⚠️ Another process is already running. Please wait...");
+            appendToTerminal(terminal.toPlainText() + "\n" + "Đang có tiến trình khác chạy. Vui lòng chờ...");
             return;
         }
         
@@ -635,29 +635,29 @@ function createMainWindow(centralWidget) {
         global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
         global.data.settings.addAddress = addAddressCheckbox.isChecked();
         
-        // âœ… RESET WINDOW POSITIONS BEFORE STARTING
+        // Reset vị trí cửa sổ trước khi bắt đầu.
         windowManager.reset();
         
-        appendToTerminal(terminal.toPlainText() + "\n" + "ðŸªŸ Window grid initialized for normal login...");
-        appendToTerminal(terminal.toPlainText() + "\n" + "ðŸš€ Starting Normal Login Process...");
+        appendToTerminal(terminal.toPlainText() + "\n" + "Đã khởi tạo lưới cửa sổ cho login normal...");
+        appendToTerminal(terminal.toPlainText() + "\n" + "Bắt đầu quy trình login normal...");
         
         try {
-            // â­ LOAD AND SHOW STATISTICS BEFORE PROCESSING
+            // Tải dữ liệu và kiểm tra trước khi xử lý.
             const accPath = path.join(__dirname, "data", 'acc.txt');
             
             if (!fs.existsSync(accPath)) {
-                appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Account file not found: " + accPath);
+                appendToTerminal(terminal.toPlainText() + "\n" + "Không tìm thấy file account: " + accPath);
                 isProcessRunning = false;
                 disableButtons(false);
                 return;
             }
 
             await require(path.join(__dirname, "util", "updateNormal.js"))();
-            appendToTerminal(terminal.toPlainText() + "\n" + "âœ… Normal login process completed!");
+            appendToTerminal(terminal.toPlainText() + "\n" + "Đã hoàn tất quy trình login normal!");
             
         } catch (error) {
-            console.error("Error during normal login:", error);
-            appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Error during normal login: " + error.message);
+            console.error("Lỗi trong lúc login normal:", error);
+            appendToTerminal(terminal.toPlainText() + "\n" + "Lỗi trong lúc login normal: " + error.message);
         } finally {
             isProcessRunning = false;
             disableButtons(false);
@@ -666,36 +666,36 @@ function createMainWindow(centralWidget) {
 
     businessLoginButton.addEventListener('clicked', async () => {
         if (isProcessRunning) {
-            appendToTerminal(terminal.toPlainText() + "\n" + "⚠️ Another process is already running. Please wait...");
+            appendToTerminal(terminal.toPlainText() + "\n" + "Đang có tiến trình khác chạy. Vui lòng chờ...");
             return;
         }
         
         isProcessRunning = true;
         disableButtons(true);
         
-        // âœ… RESET WINDOW POSITIONS BEFORE STARTING
+        // Reset vị trí cửa sổ trước khi bắt đầu.
         windowManager.reset();
         
-        appendToTerminal(terminal.toPlainText() + "\n" + "ðŸªŸ Window grid initialized for business login...");
-        appendToTerminal(terminal.toPlainText() + "\n" + "ðŸš€ Starting Business Login Process...");
+        appendToTerminal(terminal.toPlainText() + "\n" + "Đã khởi tạo lưới cửa sổ cho login business...");
+        appendToTerminal(terminal.toPlainText() + "\n" + "Bắt đầu quy trình login business...");
         
         try {
-            // â­ LOAD AND SHOW STATISTICS BEFORE PROCESSING
+            // Tải dữ liệu và kiểm tra trước khi xử lý.
             const accPath = path.join(__dirname, "data", 'acc.txt');
             
             if (!fs.existsSync(accPath)) {
-                appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Account file not found: " + accPath);
+                appendToTerminal(terminal.toPlainText() + "\n" + "Không tìm thấy file account: " + accPath);
                 isProcessRunning = false;
                 disableButtons(false);
                 return;
             }
 
             await require(path.join(__dirname, "util", "updateBusiness.js"))();
-            appendToTerminal(terminal.toPlainText() + "\n" + "âœ… Business login process completed!");
+            appendToTerminal(terminal.toPlainText() + "\n" + "Đã hoàn tất quy trình login business!");
             
         } catch (error) {
-            console.error("Error during business login:", error);
-            appendToTerminal(terminal.toPlainText() + "\n" + "âŒ Error during business login: " + error.message);
+            console.error("Lỗi trong lúc login business:", error);
+            appendToTerminal(terminal.toPlainText() + "\n" + "Lỗi trong lúc login business: " + error.message);
         } finally {
             isProcessRunning = false;
             disableButtons(false);
@@ -707,7 +707,7 @@ function createMainWindow(centralWidget) {
 
         exec(`notepad "${childFilePath}"`, (err) => {
             if (err) {
-                appendToTerminal(terminal.toPlainText() + "\nError opening card.txt: " + err.message);
+                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở card.txt: " + err.message);
             }
         });
     });
@@ -716,7 +716,7 @@ function createMainWindow(centralWidget) {
         const accFilePath = path.join(__dirname, "data", 'acc.txt');
         exec(`notepad "${accFilePath}"`, (err) => {
             if (err) {
-                appendToTerminal(terminal.toPlainText() + "\n❌ Error opening acc.txt: " + err.message);
+                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở acc.txt: " + err.message);
             }
         });
     });
@@ -725,7 +725,7 @@ function createMainWindow(centralWidget) {
         const cardFilePath = path.join(__dirname, "data", 'card.txt');
         exec(`notepad "${cardFilePath}"`, (err) => {
             if (err) {
-                appendToTerminal(terminal.toPlainText() + "\n❌ Error opening card.txt: " + err.message);
+                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở card.txt: " + err.message);
             }
         });
     });
@@ -736,11 +736,11 @@ function createMainWindow(centralWidget) {
         const cardPath = path.join(__dirname, "data", 'card.txt');
 
         if (!fs.existsSync(accPath)) {
-            appendToTerminal(terminal.toPlainText() + "\n❌ acc.txt not found. Please create the file.");
+            appendToTerminal(terminal.toPlainText() + "\nKhông tìm thấy acc.txt. Vui lòng tạo file trước.");
             return;
         }
         if (!fs.existsSync(cardPath)) {
-            appendToTerminal(terminal.toPlainText() + "\n❌ card.txt not found. Please create the file.");
+            appendToTerminal(terminal.toPlainText() + "\nKhông tìm thấy card.txt. Vui lòng tạo file trước.");
             return;
         }
 
@@ -786,15 +786,15 @@ function createMainWindow(centralWidget) {
                 console.card.setTotal(cards.length);
             }
 
-            configInfoLabel.setText(`✅ ${accounts.length} acc(s), ${cards.length} card(s), ${numChrome} Chrome`);
+            configInfoLabel.setText(`${accounts.length} acc, ${cards.length} thẻ, ${numChrome} Chrome`);
             configInfoLabel.setStyleSheet("color: #a6e3a1; font-size: 11px;");
-            appendToTerminal(terminal.toPlainText() + `\n✅ Config applied: ${accounts.length} account(s), ${cards.length} card(s), ${numChrome} Chrome instance(s)`);
-            appendToTerminal(terminal.toPlainText() + `\n⚙️ Settings: Check after ${checkAfterValue}s, Show browser: ${showBrowser ? 'Yes' : 'No'}, Add address: ${addAddress ? 'Yes' : 'No'}`);
+            appendToTerminal(terminal.toPlainText() + `\nĐã áp dụng cấu hình: ${accounts.length} account, ${cards.length} thẻ, ${numChrome} Chrome`);
+            appendToTerminal(terminal.toPlainText() + `\nCài đặt: kiểm tra sau ${checkAfterValue}s, hiện browser: ${showBrowser ? 'Có' : 'Không'}, thêm địa chỉ: ${addAddress ? 'Có' : 'Không'}`);
 
-            appendToTerminal(terminal.toPlainText() + `\n📊 Card queue: shared sequential queue, one claimed card per account turn`);
-            appendToTerminal(terminal.toPlainText() + `\n🔄 Account rotation: ${accounts.length} account(s) in queue, auto-switch on lock`);
+            appendToTerminal(terminal.toPlainText() + `\nHàng đợi thẻ: dùng chung theo thứ tự, mỗi lượt account claim một thẻ`);
+            appendToTerminal(terminal.toPlainText() + `\nLuân phiên account: ${accounts.length} account trong hàng đợi, tự đổi khi bị khóa`);
         } catch (err) {
-            appendToTerminal(terminal.toPlainText() + `\n❌ Error reading files: ${err.message}`);
+            appendToTerminal(terminal.toPlainText() + `\nLỗi khi đọc file: ${err.message}`);
         }
     });
 
@@ -803,7 +803,7 @@ function createMainWindow(centralWidget) {
 
         exec(`notepad "${childFilePath}"`, (err) => {
             if (err) {
-                appendToTerminal(terminal.toPlainText() + "\nError opening proxies.txt: " + err.message);
+                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở proxies.txt: " + err.message);
             }
         });
     });
@@ -811,7 +811,7 @@ function createMainWindow(centralWidget) {
     openFolderButton.addEventListener('clicked', () => {
         exec(`start "" "${dirSave}"`, (err) => {
             if (err) {
-                appendToTerminal(terminal.toPlainText() + "\nError opening folder: " + err.message);
+                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở thư mục output: " + err.message);
             }
         });
     });
@@ -828,7 +828,7 @@ function createMainWindow(centralWidget) {
             const liveFilePath = path.join(dirSave, "live.txt");
             fs.appendFile(liveFilePath, msg + "\n", (err) => {
                 if (err) {
-                    console.error("Error writing to live.txt:", err);
+                    console.error("Lỗi khi ghi live.txt:", err);
                 }
             });
             
@@ -844,7 +844,7 @@ function createMainWindow(centralWidget) {
             const dieFilePath = path.join(dirSave, "die.txt");
             fs.appendFile(dieFilePath, msg + "\n", (err) => {
                 if (err) {
-                    console.error("Error writing to die.txt:", err);
+                    console.error("Lỗi khi ghi die.txt:", err);
                 }
             });
             

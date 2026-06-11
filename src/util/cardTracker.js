@@ -37,11 +37,11 @@ class CardTracker {
                     }
                 });
                 
-                console.app(`[CardTracker] Loaded ${this.processedCards.size} processed cards`);
-                console.app(`[CardTracker] Loaded ${this.failedCards.size} failed cards`);
+                console.app(`[Theo dõi thẻ] Đã tải ${this.processedCards.size} thẻ đã xử lý`);
+                console.app(`[Theo dõi thẻ] Đã tải ${this.failedCards.size} thẻ lỗi`);
             }
         } catch (err) {
-            console.app(`[CardTracker] Error loading processed cards: ${err.message}`);
+            console.app(`[Theo dõi thẻ] Lỗi khi tải danh sách thẻ đã xử lý: ${err.message}`);
         }
     }
 
@@ -73,7 +73,7 @@ class CardTracker {
         this.processedCards.add(cleanCard);
         this.failedCards.delete(cleanCard);
         this.saveCard(cleanCard, 'CHECKED', result);
-        console.app(`[CardTracker] Marked as processed: ${cleanCard}`);
+        console.app(`[Theo dõi thẻ] Đã đánh dấu đã xử lý: ${cleanCard}`);
     }
 
     /**
@@ -85,7 +85,7 @@ class CardTracker {
         const cleanCard = card.trim();
         this.failedCards.add(cleanCard);
         this.saveCard(cleanCard, 'FAILED', reason);
-        console.app(`[CardTracker] Marked as failed: ${cleanCard} - ${reason}`);
+        console.app(`[Theo dõi thẻ] Đã đánh dấu lỗi: ${cleanCard} - ${reason}`);
     }
 
     /**
@@ -98,7 +98,7 @@ class CardTracker {
         try {
             fs.appendFileSync(this.trackerFilePath, line, 'utf8');
         } catch (err) {
-            console.app(`[CardTracker] Error saving card: ${err.message}`);
+            console.app(`[Theo dõi thẻ] Lỗi khi lưu thẻ: ${err.message}`);
         }
     }
 
@@ -119,8 +119,8 @@ class CardTracker {
      */
     markAsSkipped(card) {
         const cleanCard = card.trim();
-        this.saveCard(cleanCard, 'SKIPPED', 'Already processed');
-        console.app(`[CardTracker] Skipped card: ${cleanCard}`);
+        this.saveCard(cleanCard, 'SKIPPED', 'Đã xử lý trước đó');
+        console.app(`[Theo dõi thẻ] Bỏ qua thẻ: ${cleanCard}`);
     }
 
     /**
@@ -136,7 +136,7 @@ class CardTracker {
     reset() {
         this.processedCards.clear();
         this.failedCards.clear();
-        console.app(`[CardTracker] Tracker reset`);
+        console.app(`[Theo dõi thẻ] Đã reset bộ theo dõi`);
     }
 }
 

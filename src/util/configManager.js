@@ -34,10 +34,10 @@ class ConfigManager {
                     .split('\n')
                     .map(line => line.trim())
                     .filter(line => line.length > 0);
-                console.log(`✅ Loaded ${this.config.proxies.length} proxies`);
+                console.log(`Đã tải ${this.config.proxies.length} proxy`);
             }
         } catch (err) {
-            console.log(`⚠️ Failed to load proxies: ${err.message}`);
+            console.log(`Không thể tải proxy: ${err.message}`);
         }
     }
 
@@ -50,10 +50,10 @@ class ConfigManager {
             if (fs.existsSync(dataPath)) {
                 const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
                 this.config.businessAccounts = data.businessAccounts || [];
-                console.log(`✅ Loaded ${this.config.businessAccounts.length} business accounts reference`);
+                console.log(`Đã tải ${this.config.businessAccounts.length} account business tham chiếu`);
             }
         } catch (err) {
-            console.log(`⚠️ Failed to load business accounts: ${err.message}`);
+            console.log(`Không thể tải danh sách account business: ${err.message}`);
         }
     }
 
@@ -74,10 +74,10 @@ class ConfigManager {
         
         this.config.source = 'ui';
         
-        console.log(`✅ UI Configuration updated`);
-        console.log(`   Accounts: ${this.config.accounts.length}`);
-        console.log(`   Cards: ${this.config.cards.length}`);
-        console.log(`   Chrome instances: ${this.config.numChrome}`);
+        console.log(`Đã cập nhật cấu hình từ giao diện`);
+        console.log(`   Account: ${this.config.accounts.length}`);
+        console.log(`   Thẻ: ${this.config.cards.length}`);
+        console.log(`   Số Chrome: ${this.config.numChrome}`);
 
         return this.config;
     }
@@ -97,7 +97,7 @@ class ConfigManager {
                     .split('\n')
                     .map(line => line.trim())
                     .filter(line => line.length > 0);
-                console.log(`✅ Loaded ${this.config.accounts.length} accounts from acc.txt`);
+                console.log(`Đã tải ${this.config.accounts.length} account từ acc.txt`);
             }
 
             if (fs.existsSync(cardPath)) {
@@ -107,13 +107,13 @@ class ConfigManager {
                     .split('\n')
                     .map(line => line.trim())
                     .filter(line => line.length > 0);
-                console.log(`✅ Loaded ${this.config.cards.length} cards from card.txt`);
+                console.log(`Đã tải ${this.config.cards.length} thẻ từ card.txt`);
             }
 
             this.config.source = 'file';
             return this.config;
         } catch (err) {
-            console.log(`❌ Failed to load from files: ${err.message}`);
+            console.log(`Không thể tải cấu hình từ file: ${err.message}`);
             return null;
         }
     }
@@ -166,22 +166,22 @@ class ConfigManager {
         const errors = [];
 
         if (!this.config.accounts || this.config.accounts.length === 0) {
-            errors.push('No accounts configured');
+            errors.push('Chưa cấu hình account');
         }
 
         if (!this.config.cards || this.config.cards.length === 0) {
-            errors.push('No cards configured');
+            errors.push('Chưa cấu hình thẻ');
         }
 
         if (this.config.numChrome < 1) {
-            errors.push('Number of Chrome instances must be at least 1');
+            errors.push('Số Chrome phải tối thiểu là 1');
         }
 
         // Validate account format
         this.config.accounts.forEach((acc, idx) => {
             const parts = acc.split('|');
             if (parts.length < 2) {
-                errors.push(`Account ${idx + 1}: Invalid format (need email|password|secret|code)`);
+                errors.push(`Account ${idx + 1}: Sai định dạng, cần email|password|secret|code`);
             }
         });
 
@@ -189,7 +189,7 @@ class ConfigManager {
         this.config.cards.forEach((card, idx) => {
             const parts = card.split('|');
             if (parts.length < 5) {
-                errors.push(`Card ${idx + 1}: Invalid format (need number|month|year|cvv|name)`);
+                errors.push(`Thẻ ${idx + 1}: Sai định dạng, cần number|month|year|cvv|name`);
             }
         });
 
@@ -212,9 +212,9 @@ class ConfigManager {
                 numChrome: this.config.numChrome
             };
             fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8');
-            console.log(`✅ UI config saved to ui_config.json`);
+            console.log(`Đã lưu cấu hình giao diện vào ui_config.json`);
         } catch (err) {
-            console.log(`⚠️ Failed to save UI config: ${err.message}`);
+            console.log(`Không thể lưu cấu hình giao diện: ${err.message}`);
         }
     }
 
@@ -230,11 +230,11 @@ class ConfigManager {
                 this.config.cards = data.cards || [];
                 this.config.numChrome = data.numChrome || 1;
                 this.config.source = 'ui';
-                console.log(`✅ Loaded saved UI config`);
+                console.log(`Đã tải cấu hình giao diện đã lưu`);
                 return true;
             }
         } catch (err) {
-            console.log(`⚠️ Failed to load saved UI config: ${err.message}`);
+            console.log(`Không thể tải cấu hình giao diện đã lưu: ${err.message}`);
         }
         return false;
     }

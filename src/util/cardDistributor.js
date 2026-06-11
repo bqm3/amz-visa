@@ -39,10 +39,10 @@ class CardDistributor {
         });
 
         const cardsPerChrome = Math.ceil(this.cards.length / this.numChrome);
-        console.log(`✅ Distributed ${this.cards.length} cards across ${this.numChrome} Chrome instances (ROUND-ROBIN)`);
-        console.log(`   ~${cardsPerChrome} cards per Chrome`);
+        console.log(`Đã chia ${this.cards.length} thẻ cho ${this.numChrome} Chrome (xoay vòng)`);
+        console.log(`   Khoảng ${cardsPerChrome} thẻ mỗi Chrome`);
         this.chromeInstances.forEach(instance => {
-            console.log(`   Chrome ${instance.instanceId}: ${instance.totalCards} cards`);
+            console.log(`   Chrome ${instance.instanceId}: ${instance.totalCards} thẻ`);
         });
     }
 

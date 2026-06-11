@@ -177,7 +177,7 @@ async function bootstrap() {
           void promptLicenseRenewal();
           return;
         }
-        console.error(`License heartbeat failed: ${error.message}`);
+        console.error(`Không thể kiểm tra license định kỳ: ${error.message}`);
       }
     };
 
@@ -237,6 +237,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error) => {
-  console.error("Application bootstrap failed:", error);
+  console.error("Khởi động ứng dụng thất bại:", error);
   process.exit(1);
 });

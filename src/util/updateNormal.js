@@ -106,7 +106,7 @@ function markLockedAccount(email, reason = 'ACCOUNT_LOCKED') {
         data.lockedAccounts[email] = { lockedAt: Date.now(), reason };
         fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
     } catch (error) {
-        console.app(`Could not save locked account to data.json: ${error.message}`);
+        console.app(`Không thể lưu account bị khóa vào data.json: ${error.message}`);
     }
 
     try {
@@ -115,7 +115,7 @@ function markLockedAccount(email, reason = 'ACCOUNT_LOCKED') {
             fs.appendFileSync(lockedPath, `${new Date().toISOString()}: ${email} - ${reason} - AUTO_DETECTED\n`, 'utf8');
         }
     } catch (error) {
-        console.app(`Could not write locked account: ${error.message}`);
+        console.app(`Không thể ghi account bị khóa: ${error.message}`);
     }
 }
 
@@ -153,7 +153,7 @@ async function returnToWallet(page) {
         });
         await new Promise(resolve => setTimeout(resolve, 2500));
     } catch (error) {
-        console.log(`WARN Could not return to wallet: ${error.message}`);
+        console.log(`Cảnh báo: không thể quay lại ví thanh toán: ${error.message}`);
     }
 }
 
@@ -167,10 +167,10 @@ async function updateNormal() {
         : Math.max(proxies.length, 1);
     
     windowManager.reset();
-    console.log(`🖥️ Max concurrent Chrome: ${maxConcurrentWindows}`);
-    console.app(`🖥️ Max concurrent Chrome: ${maxConcurrentWindows}`);
-    console.log('Starting normal login process...');
-    console.app('Starting normal login process...');
+    console.log(`Số Chrome chạy song song tối đa: ${maxConcurrentWindows}`);
+    console.app(`Số Chrome chạy song song tối đa: ${maxConcurrentWindows}`);
+    console.log('Bắt đầu quy trình login normal...');
+    console.app('Bắt đầu quy trình login normal...');
 
     const cardPath = path.join(__dirname, '..', 'data', 'card.txt');
     const cardLines = fs.existsSync(cardPath)
@@ -181,13 +181,13 @@ async function updateNormal() {
         console.card.setTotal(cardLines.length);
     }
     if (sharedCardQueue.remainingCount() === 0) {
-        console.app('No unclaimed cards available. Clear src/data/checkcard.txt if you want to run these cards again.');
+        console.app('Không còn thẻ chưa claim. Xóa src/data/checkcard.txt nếu muốn chạy lại các thẻ này.');
         return;
     }
 
     if (accounts.length === 0) {
-        console.log('No accounts found in acc.txt');
-        console.app('No accounts found in acc.txt');
+        console.log('Không tìm thấy account trong acc.txt');
+        console.app('Không tìm thấy account trong acc.txt');
         return;
     }
 
@@ -195,14 +195,14 @@ async function updateNormal() {
     const availableAccounts = accounts.filter(accountLine => {
         const email = accountLine.split('|')[0].trim();
         if (lockedAccounts.has(email)) {
-            console.app(`Skip locked account: ${email}`);
+            console.app(`Bỏ qua account bị khóa: ${email}`);
             return false;
         }
         return true;
     });
 
     if (availableAccounts.length === 0) {
-        console.app('No available accounts after filtering locked accounts');
+        console.app('Không còn account khả dụng sau khi lọc account bị khóa');
         return;
     }
 
@@ -217,15 +217,15 @@ async function updateNormal() {
         await Promise.allSettled(batch.map(item => processAccount(item.accountLine, item.index)));
     }
 
-    console.log('All normal logins completed!');
-    console.app('All normal logins completed!');
+    console.log('Đã hoàn tất toàn bộ login normal!');
+    console.app('Đã hoàn tất toàn bộ login normal!');
 }
 
 async function processAccount(accountLine, index) {
     const [email, pass, secret] = accountLine.split('|');
     if (!email || !pass || !secret) {
-        console.log(`Invalid account data: ${accountLine}`);
-        console.app(`Invalid account data: ${accountLine}`);
+        console.log(`Dữ liệu account không hợp lệ: ${accountLine}`);
+        console.app(`Dữ liệu account không hợp lệ: ${accountLine}`);
         return;
     }
 
@@ -299,8 +299,8 @@ async function processAccount(accountLine, index) {
             });
         }
 
-        console.log(`Attempting normal login for: ${email}`);
-        console.app(`Attempting normal login for: ${email}`);
+        console.log(`Đang login normal cho: ${email}`);
+        console.app(`Đang login normal cho: ${email}`);
 
         await require(path.join(__dirname, '..', 'api', 'login.js'))(page, {
             email,
@@ -312,7 +312,7 @@ async function processAccount(accountLine, index) {
         await new Promise(resolve => setTimeout(resolve, 1500));
         if (await isAccountLockedPage(page)) {
             markLockedAccount(email, 'ACCOUNT_LOCKED');
-            console.app(`Account locked detected after login: ${email}`);
+            console.app(`Phát hiện account bị khóa sau khi login: ${email}`);
             return;
         }
 
@@ -322,8 +322,8 @@ async function processAccount(accountLine, index) {
         try {
             const switcherHeaderExists = await page.evaluate(() => !!document.querySelector('#cvf-filtered-account-switcher-header-text'));
             if (switcherHeaderExists) {
-                console.log(`Account switcher detected for ${email}, selecting personal account...`);
-                console.app(`Account switcher detected for ${email}, selecting personal account...`);
+                console.log(`Phát hiện màn chọn account cho ${email}, đang chọn account cá nhân...`);
+                console.app(`Phát hiện màn chọn account cho ${email}, đang chọn account cá nhân...`);
 
                 const clicked = await page.evaluate(() => {
                     const customerName = document.querySelector('[data-test-id="customerName"]');
@@ -387,12 +387,12 @@ async function processAccount(accountLine, index) {
                 });
 
                 if (clickedAddAddress.success) {
-                    console.log(`Clicked Add Address tile using selector: ${clickedAddAddress.selector}`);
-                    console.app(`Clicked Add Address tile using selector: ${clickedAddAddress.selector}`);
+                    console.log(`Đã bấm ô Add Address bằng selector: ${clickedAddAddress.selector}`);
+                    console.app(`Đã bấm ô Add Address bằng selector: ${clickedAddAddress.selector}`);
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 } else {
-                    console.log(`Add Address tile not found for ${email}, trying direct add-address URL...`);
-                    console.app(`Add Address tile not found for ${email}, trying direct add-address URL...`);
+                    console.log(`Không tìm thấy ô Add Address cho ${email}, thử mở URL thêm địa chỉ trực tiếp...`);
+                    console.app(`Không tìm thấy ô Add Address cho ${email}, thử mở URL thêm địa chỉ trực tiếp...`);
                 }
 
                 const hasAddressForm = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
@@ -414,17 +414,17 @@ async function processAccount(accountLine, index) {
                 try {
                     const addressApi = require(path.join(__dirname, '..', 'api', 'addAddress.js'));
                     await addressApi.addAddress(page, { apiRetries: 1 });
-                    console.log(`Address flow completed for ${email}`);
-                    console.app(`Address flow completed for ${email}`);
+                    console.log(`Đã hoàn tất thêm địa chỉ cho ${email}`);
+                    console.app(`Đã hoàn tất thêm địa chỉ cho ${email}`);
                 } catch (addAddressError) {
-                    console.log(`Address form flow failed for ${email}: ${addAddressError.message}`);
-                    console.app(`Address form flow failed for ${email}: ${addAddressError.message}`);
+                    console.log(`Lỗi khi điền form địa chỉ cho ${email}: ${addAddressError.message}`);
+                    console.app(`Lỗi khi điền form địa chỉ cho ${email}: ${addAddressError.message}`);
                 }
             } catch (addressPageError) {
-                console.app(`Address page flow failed for ${email}: ${addressPageError.message}`);
+                console.app(`Lỗi khi mở trang địa chỉ cho ${email}: ${addressPageError.message}`);
             }
         } else {
-            console.app(`Skip address for ${email}`);
+            console.app(`Bỏ qua bước thêm địa chỉ cho ${email}`);
         }
 
             // Continue with card flow similar to scan/check flow.
@@ -437,8 +437,8 @@ async function processAccount(accountLine, index) {
                 await new Promise(resolve => setTimeout(resolve, 1500));
 
                 if (sharedCardQueue.remainingCount() === 0) {
-                    console.log(`No shared cards available for ${email}`);
-                    console.app(`No shared cards available for ${email}`);
+                    console.log(`Không còn thẻ dùng chung khả dụng cho ${email}`);
+                    console.app(`Không còn thẻ dùng chung khả dụng cho ${email}`);
                 } else {
                     const addCard = require(path.join(__dirname, '..', 'api', 'addCard.js'));
 
@@ -447,14 +447,14 @@ async function processAccount(accountLine, index) {
 
                     while (true) {
                         if (!page || page.isClosed()) {
-                            console.app(`Page closed for ${email}, stop claiming shared cards`);
+                            console.app(`Trang đã đóng cho ${email}, dừng claim thẻ dùng chung`);
                             break;
                         }
 
                         const card = sharedCardQueue.claimNextCard(email);
                         if (!card) {
-                            console.log(`No more shared cards for ${email}`);
-                            console.app(`No more shared cards for ${email}`);
+                            console.log(`Đã hết thẻ dùng chung cho ${email}`);
+                            console.app(`Đã hết thẻ dùng chung cho ${email}`);
                             break;
                         }
 
@@ -466,26 +466,26 @@ async function processAccount(accountLine, index) {
                             cvc: card.cvc
                         };
 
-                        console.log(`Processing shared card ***${card.number.slice(-4)} for ${email}`);
-                        console.app(`Processing shared card ***${card.number.slice(-4)} for ${email}`);
+                        console.log(`Đang xử lý thẻ dùng chung ***${card.number.slice(-4)} cho ${email}`);
+                        console.app(`Đang xử lý thẻ dùng chung ***${card.number.slice(-4)} cho ${email}`);
 
                         const res = await addCard(page, form);
 
                         if (res.success) {
                             liveCount++;
                             appendCardResult('live', card, email);
-                            console.log(`LIVE card ***${card.number.slice(-4)} for ${email}`);
-                            console.app(`LIVE card ***${card.number.slice(-4)} for ${email}`);
+                            console.log(`Thẻ LIVE ***${card.number.slice(-4)} cho ${email}`);
+                            console.app(`Thẻ LIVE ***${card.number.slice(-4)} cho ${email}`);
                         } else {
                             const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
                             dieCount++;
                             appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
-                            console.log(`DIE card ***${card.number.slice(-4)} for ${email}${reason}`);
-                            console.app(`DIE card ***${card.number.slice(-4)} for ${email}${reason}`);
+                            console.log(`Thẻ DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
+                            console.app(`Thẻ DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
 
                             const fatalReason = `${res.step || ''} ${res.error || ''}`.toLowerCase();
                             if (fatalReason.includes('page_closed') || fatalReason.includes('detached frame') || fatalReason.includes('session closed')) {
-                                console.app(`Fatal page/frame error for ${email}, stop claiming shared cards`);
+                                console.app(`Lỗi nghiêm trọng ở page/frame cho ${email}, dừng claim thẻ dùng chung`);
                                 break;
                             }
                         }
@@ -493,24 +493,24 @@ async function processAccount(accountLine, index) {
                         await returnToWallet(page);
                     }
 
-                    console.log(`Card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
-                    console.app(`Card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
+                    console.log(`Đã hoàn tất flow thẻ cho ${email}: ${liveCount} live, ${dieCount} die`);
+                    console.app(`Đã hoàn tất flow thẻ cho ${email}: ${liveCount} live, ${dieCount} die`);
                 }
             } catch (cardFlowError) {
-                console.log(`Card flow failed for ${email}: ${cardFlowError.message}`);
-                console.app(`Card flow failed for ${email}: ${cardFlowError.message}`);
+                console.log(`Lỗi flow thẻ cho ${email}: ${cardFlowError.message}`);
+                console.app(`Lỗi flow thẻ cho ${email}: ${cardFlowError.message}`);
             }
-        console.log(`Successfully logged in: ${email}`);
-        console.app(`Successfully logged in: ${email}`);
+        console.log(`Login thành công: ${email}`);
+        console.app(`Login thành công: ${email}`);
     } catch (error) {
         if (String(error.message || '').includes('ACCOUNT_LOCKED') || String(error.message || '').includes('account-status') || await isAccountLockedPage(page)) {
             markLockedAccount(email, 'ACCOUNT_LOCKED');
-            console.app(`Account locked detected: ${email}`);
+            console.app(`Phát hiện account bị khóa: ${email}`);
             return;
         }
 
-        console.log(`Normal login failed [${index + 1}] ${email}: ${error.message}`);
-        console.app(`Normal login failed [${index + 1}] ${email}: ${error.message}`);
+        console.log(`Login normal thất bại [${index + 1}] ${email}: ${error.message}`);
+        console.app(`Login normal thất bại [${index + 1}] ${email}: ${error.message}`);
     } finally {
         if (browser) {
             await browser.close();

@@ -40,7 +40,7 @@ function loadBusinessAccounts() {
             return data.businessAccounts || [];
         }
     } catch (error) {
-        console.log(`Error loading business accounts: ${error.message}`);
+        console.log(`Lỗi khi tải danh sách account business: ${error.message}`);
     }
     return [];
 }
@@ -51,8 +51,8 @@ function shouldSkipBusinessUpgrade(email) {
     const isAlreadyBusiness = businessAccounts.includes(email);
     
     if (isAlreadyBusiness) {
-        console.log(`Business account exists for ${email}, selecting Business account and continuing`);
-        console.app(`Business account exists for ${email}, selecting Business account and continuing`);
+        console.log(`Account business đã tồn tại cho ${email}, chọn Business account và tiếp tục`);
+        console.app(`Account business đã tồn tại cho ${email}, chọn Business account và tiếp tục`);
         return false;
     }
     
@@ -61,8 +61,8 @@ function shouldSkipBusinessUpgrade(email) {
 
 // Validate proxy count
 if (proxies.length === 0) {
-    console.log("⚠️ Warning: No proxies found in proxies.txt, running without proxy");
-    console.app("⚠️ Warning: No proxies found in proxies.txt, running without proxy");
+    console.log("Cảnh báo: không tìm thấy proxy trong proxies.txt, sẽ chạy không dùng proxy");
+    console.app("Cảnh báo: không tìm thấy proxy trong proxies.txt, sẽ chạy không dùng proxy");
 }
 
 let currentAccountIndex = 0;
@@ -143,7 +143,7 @@ function markLockedAccount(email, reason = 'ACCOUNT_LOCKED') {
         data.lockedAccounts[email] = { lockedAt: Date.now(), reason };
         fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
     } catch (error) {
-        console.app(`Could not save locked account to data.json: ${error.message}`);
+        console.app(`Không thể lưu account bị khóa vào data.json: ${error.message}`);
     }
 
     try {
@@ -152,7 +152,7 @@ function markLockedAccount(email, reason = 'ACCOUNT_LOCKED') {
             fs.appendFileSync(lockedPath, `${new Date().toISOString()}: ${email} - ${reason} - AUTO_DETECTED\n`, 'utf8');
         }
     } catch (error) {
-        console.app(`Could not write locked account: ${error.message}`);
+        console.app(`Không thể ghi account bị khóa: ${error.message}`);
     }
 }
 
@@ -160,7 +160,7 @@ async function stopIfLocked(page, email, context = '') {
     if (!(await isAccountLockedPage(page))) return false;
 
     markLockedAccount(email, 'ACCOUNT_LOCKED');
-    console.app(`Account locked detected${context ? ` ${context}` : ''}: ${email}`);
+    console.app(`Phát hiện account bị khóa${context ? ` ${context}` : ''}: ${email}`);
     return true;
 }
 
@@ -225,8 +225,8 @@ async function clickStartBrowsingIfPresent(page, email) {
             });
 
             if (clicked) {
-                console.log(`Clicked Start browsing for ${email}`);
-                console.app(`Clicked Start browsing for ${email}`);
+                console.log(`Đã bấm Start browsing cho ${email}`);
+                console.app(`Đã bấm Start browsing cho ${email}`);
                 await Promise.race([
                     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null),
                     new Promise(resolve => setTimeout(resolve, 4000))
@@ -240,8 +240,8 @@ async function clickStartBrowsingIfPresent(page, email) {
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    console.log(`Start browsing button not found for ${email}, continuing to card flow`);
-    console.app(`Start browsing button not found for ${email}, continuing to card flow`);
+    console.log(`Không tìm thấy nút Start browsing cho ${email}, tiếp tục sang flow thẻ`);
+    console.app(`Không tìm thấy nút Start browsing cho ${email}, tiếp tục sang flow thẻ`);
     return false;
 }
 
@@ -253,7 +253,7 @@ async function returnToWallet(page) {
         });
         await new Promise(resolve => setTimeout(resolve, 2500));
     } catch (error) {
-        console.log(`WARN Could not return to wallet: ${error.message}`);
+        console.log(`Cảnh báo: không thể quay lại ví thanh toán: ${error.message}`);
     }
 }
 
@@ -263,8 +263,8 @@ async function runBusinessCardFlow(page, email) {
     }
 
     if (sharedCardQueue.remainingCount() === 0) {
-        console.log(`No shared cards available for ${email}`);
-        console.app(`No shared cards available for ${email}`);
+        console.log(`Không còn thẻ dùng chung khả dụng cho ${email}`);
+        console.app(`Không còn thẻ dùng chung khả dụng cho ${email}`);
         return;
     }
 
@@ -276,14 +276,14 @@ async function runBusinessCardFlow(page, email) {
 
     while (true) {
         if (!page || page.isClosed()) {
-            console.app(`Page closed for ${email}, stop claiming shared cards`);
+            console.app(`Trang đã đóng cho ${email}, dừng claim thẻ dùng chung`);
             break;
         }
 
         const card = sharedCardQueue.claimNextCard(email);
         if (!card) {
-            console.log(`No more shared cards for ${email}`);
-            console.app(`No more shared cards for ${email}`);
+            console.log(`Đã hết thẻ dùng chung cho ${email}`);
+            console.app(`Đã hết thẻ dùng chung cho ${email}`);
             break;
         }
 
@@ -295,25 +295,25 @@ async function runBusinessCardFlow(page, email) {
             cvc: card.cvc
         };
 
-        console.log(`Business shared card ***${card.number.slice(-4)} for ${email}`);
-        console.app(`Business shared card ***${card.number.slice(-4)} for ${email}`);
+        console.log(`Đang xử lý thẻ business dùng chung ***${card.number.slice(-4)} cho ${email}`);
+        console.app(`Đang xử lý thẻ business dùng chung ***${card.number.slice(-4)} cho ${email}`);
 
         const res = await addCard(page, form);
         if (res.success) {
             liveCount++;
             appendCardResult('live', card, email);
-            console.log(`LIVE business card ***${card.number.slice(-4)} for ${email}`);
-            console.app(`LIVE business card ***${card.number.slice(-4)} for ${email}`);
+            console.log(`Thẻ business LIVE ***${card.number.slice(-4)} cho ${email}`);
+            console.app(`Thẻ business LIVE ***${card.number.slice(-4)} cho ${email}`);
         } else {
             const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
             dieCount++;
             appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
-            console.log(`DIE business card ***${card.number.slice(-4)} for ${email}${reason}`);
-            console.app(`DIE business card ***${card.number.slice(-4)} for ${email}${reason}`);
+            console.log(`Thẻ business DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
+            console.app(`Thẻ business DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
 
             const fatalReason = `${res.step || ''} ${res.error || ''}`.toLowerCase();
             if (fatalReason.includes('page_closed') || fatalReason.includes('detached frame') || fatalReason.includes('session closed')) {
-                console.app(`Fatal page/frame error for ${email}, stop claiming shared cards`);
+                console.app(`Lỗi nghiêm trọng ở page/frame cho ${email}, dừng claim thẻ dùng chung`);
                 break;
             }
         }
@@ -321,13 +321,13 @@ async function runBusinessCardFlow(page, email) {
         await returnToWallet(page);
     }
 
-    console.log(`Business card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
-    console.app(`Business card flow completed for ${email}: ${liveCount} live, ${dieCount} die`);
+    console.log(`Đã hoàn tất flow thẻ business cho ${email}: ${liveCount} live, ${dieCount} die`);
+    console.app(`Đã hoàn tất flow thẻ business cho ${email}: ${liveCount} live, ${dieCount} die`);
 }
 
 async function runBusinessAddressFlow(page, email) {
     if (!global.data.settings.addAddress) {
-        console.app(`Skip business address for ${email}`);
+        console.app(`Bỏ qua bước thêm địa chỉ business cho ${email}`);
         return;
     }
 
@@ -383,11 +383,11 @@ async function runBusinessAddressFlow(page, email) {
 
         const addressApi = require(path.join(__dirname, '..', 'api', 'addAddress.js'));
         await addressApi.addAddress(page, { apiRetries: 1 });
-        console.log(`Business address flow completed for ${email}`);
-        console.app(`Business address flow completed for ${email}`);
+        console.log(`Đã hoàn tất thêm địa chỉ business cho ${email}`);
+        console.app(`Đã hoàn tất thêm địa chỉ business cho ${email}`);
     } catch (error) {
-        console.log(`Business address flow failed for ${email}: ${error.message}`);
-        console.app(`Business address flow failed for ${email}: ${error.message}`);
+        console.log(`Lỗi flow địa chỉ business cho ${email}: ${error.message}`);
+        console.app(`Lỗi flow địa chỉ business cho ${email}: ${error.message}`);
     }
 }
 
@@ -412,21 +412,21 @@ function addBusinessAccount(email) {
         // Add to business accounts list if not already present
         if (!data.businessAccounts.includes(email)) {
             data.businessAccounts.push(email);
-            console.log(`✅ Added ${email} to business accounts list`);
-            console.app(`✅ Added ${email} to business accounts list`);
+            console.log(`Đã thêm ${email} vào danh sách account business`);
+            console.app(`Đã thêm ${email} vào danh sách account business`);
             
             // Save data immediately
             fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
             return true;
         } else {
-            console.log(`ℹ️ ${email} already in business accounts list`);
-            console.app(`ℹ️ ${email} already in business accounts list`);
+            console.log(`${email} đã có trong danh sách account business`);
+            console.app(`${email} đã có trong danh sách account business`);
             return false;
         }
         
     } catch (error) {
-        console.error(`❌ Error adding business account ${email}:`, error.message);
-        console.app(`❌ Error adding business account ${email}: ${error.message}`);
+        console.error(`Lỗi khi thêm account business ${email}:`, error.message);
+        console.app(`Lỗi khi thêm account business ${email}: ${error.message}`);
         return false;
     }
 }
@@ -447,10 +447,10 @@ async function updateBusiness() {
     // ✅ RESET WINDOW POSITIONS AT START
     windowManager.reset();
     
-    console.log(`🖥️ Max concurrent Chrome: ${maxConcurrentWindows}`);
-    console.app(`🖥️ Max concurrent Chrome: ${maxConcurrentWindows}`);
-    console.app("🚀 Starting Business Account Registration Process...");
-    console.log("🚀 Starting Business Account Registration Process...");
+    console.log(`Số Chrome chạy song song tối đa: ${maxConcurrentWindows}`);
+    console.app(`Số Chrome chạy song song tối đa: ${maxConcurrentWindows}`);
+    console.app("Bắt đầu quy trình đăng ký account business...");
+    console.log("Bắt đầu quy trình đăng ký account business...");
 
     const startupCardPath = path.join(__dirname, '..', 'data', 'card.txt');
     const startupCardLines = fs.existsSync(startupCardPath)
@@ -461,7 +461,7 @@ async function updateBusiness() {
         console.card.setTotal(startupCardLines.length);
     }
     if (sharedCardQueue.remainingCount() === 0) {
-        console.app('No unclaimed cards available. Clear src/data/checkcard.txt if you want to run these cards again.');
+        console.app('Không còn thẻ chưa claim. Xóa src/data/checkcard.txt nếu muốn chạy lại các thẻ này.');
         return;
     }
 
@@ -475,7 +475,7 @@ async function updateBusiness() {
         const email = accountLine.split('|')[0];
         
         if (lockedAccounts.has(email)) {
-            console.app(`Skip locked account: ${email}`);
+            console.app(`Bỏ qua account bị khóa: ${email}`);
             skippedCount++;
         } else if (!shouldSkipBusinessUpgrade(email)) {
             accountsToProcess.push(accountLine);
@@ -484,23 +484,23 @@ async function updateBusiness() {
         }
     }
 
-    console.log(`📊 Business Login Status:`);
-    console.log(`📧 Total accounts: ${childAccounts.length}`);
-    console.log(`🏢 Already business: ${businessAccounts.length}`);
-    console.log(`⏭️ Skipped: ${skippedCount}`);
-    console.log(`🔄 To process: ${accountsToProcess.length}`);
-    console.app(`Total: ${childAccounts.length}, Already business: ${businessAccounts.length}, Skipped: ${skippedCount}, To process: ${accountsToProcess.length}`);
+    console.log(`Trạng thái login business:`);
+    console.log(`Tổng account: ${childAccounts.length}`);
+    console.log(`Đã là business: ${businessAccounts.length}`);
+    console.log(`Đã bỏ qua: ${skippedCount}`);
+    console.log(`Cần xử lý: ${accountsToProcess.length}`);
+    console.app(`Tổng: ${childAccounts.length}, đã business: ${businessAccounts.length}, bỏ qua: ${skippedCount}, cần xử lý: ${accountsToProcess.length}`);
 
     if (accountsToProcess.length === 0) {
-        console.log('✅ All accounts are already business accounts');
-        console.app('✅ All accounts are already business accounts');
+        console.log('Tất cả account đã là account business');
+        console.app('Tất cả account đã là account business');
         return;
     }
 
     // Process remaining accounts
     const workerCount = Math.min(maxConcurrentWindows, accountsToProcess.length);
-    console.log(`\nStarting ${workerCount} worker(s) for ${accountsToProcess.length} account(s)`);
-    console.app(`Starting ${workerCount} worker(s) for ${accountsToProcess.length} account(s)`);
+    console.log(`\nBắt đầu ${workerCount} worker cho ${accountsToProcess.length} account`);
+    console.app(`Bắt đầu ${workerCount} worker cho ${accountsToProcess.length} account`);
 
     const workers = Array.from({ length: workerCount }, (_, workerIndex) =>
         processBusinessWorker(workerIndex + 1, accountsToProcess)
@@ -508,8 +508,8 @@ async function updateBusiness() {
 
     await Promise.allSettled(workers);
 
-    console.log("All business logins completed!");
-    console.app("All business logins completed!");
+    console.log("Đã hoàn tất toàn bộ login business!");
+    console.app("Đã hoàn tất toàn bộ login business!");
 }
 
 /**
@@ -522,13 +522,13 @@ async function processBusinessWorker(workerId, accountsToProcess) {
         const account = accountsToProcess[accountIndex];
         const email = account.split('|')[0];
 
-        console.app(`Worker ${workerId}: starting account ${accountIndex + 1}/${accountsToProcess.length}: ${email}`);
+        console.app(`Worker ${workerId}: bắt đầu account ${accountIndex + 1}/${accountsToProcess.length}: ${email}`);
 
         try {
             await processAccount(account, accountIndex);
         } catch (error) {
-            console.error(`Worker ${workerId} error processing account ${email}:`, error.message);
-            console.app(`Worker ${workerId} error processing account ${email}: ${error.message}`);
+            console.error(`Worker ${workerId} lỗi khi xử lý account ${email}:`, error.message);
+            console.app(`Worker ${workerId} lỗi khi xử lý account ${email}: ${error.message}`);
         }
 
         if (currentAccountIndex < accountsToProcess.length) {
@@ -545,8 +545,8 @@ async function processAccount(accountLine, batchIndex) {
     const [email, pass, secret] = accountLine.split("|");
 
     if (!email || !pass || !secret) {
-        console.log(`⚠️ Invalid account data: ${accountLine}`);
-        console.app(`⚠️ Invalid account data: ${accountLine}`);
+        console.log(`Dữ liệu account không hợp lệ: ${accountLine}`);
+        console.app(`Dữ liệu account không hợp lệ: ${accountLine}`);
         return;
     }
 
@@ -554,8 +554,8 @@ async function processAccount(accountLine, batchIndex) {
     let page = null;
 
     try {
-        console.log(`🌐 [${batchIndex + 1}] Starting login for: ${email}`);
-        console.app(`🌐 [${batchIndex + 1}] Starting login for: ${email}`);
+        console.log(`[${batchIndex + 1}] Bắt đầu login cho: ${email}`);
+        console.app(`[${batchIndex + 1}] Bắt đầu login cho: ${email}`);
 
         // Get proxy if available
         let proxy = null;
@@ -568,12 +568,12 @@ async function processAccount(accountLine, batchIndex) {
                 username: user,
                 password: proxyPass
             };
-            console.log(`🌐 [${batchIndex + 1}] Using proxy: ${host}:${port} for ${email}`);
-            console.app(`🌐 [${batchIndex + 1}] Using proxy: ${host}:${port} for ${email}`);
+            console.log(`[${batchIndex + 1}] Dùng proxy ${host}:${port} cho ${email}`);
+            console.app(`[${batchIndex + 1}] Dùng proxy ${host}:${port} cho ${email}`);
             currentProxyIndex++;
         } else {
-            console.log(`🌐 [${batchIndex + 1}] No proxy available, using direct connection for ${email}`);
-            console.app(`🌐 [${batchIndex + 1}] No proxy available, using direct connection for ${email}`);
+            console.log(`[${batchIndex + 1}] Không có proxy, dùng kết nối trực tiếp cho ${email}`);
+            console.app(`[${batchIndex + 1}] Không có proxy, dùng kết nối trực tiếp cho ${email}`);
         }
 
         // ✅ GET POSITION FROM WINDOW MANAGER
@@ -660,20 +660,20 @@ async function processAccount(accountLine, batchIndex) {
         };
 
         // Call business login function
-        console.log(`🔐 [${batchIndex + 1}] Attempting business login for: ${email}`);
-        console.app(`🔐 [${batchIndex + 1}] Attempting business login for: ${email}`);
+        console.log(`[${batchIndex + 1}] Đang login business cho: ${email}`);
+        console.app(`[${batchIndex + 1}] Đang login business cho: ${email}`);
 
         await require(path.join(__dirname, "..", "api", "business", "login.js"))(page, loginForm);
 
         await new Promise(resolve => setTimeout(resolve, 1500));
         if (await isAccountLockedPage(page)) {
             markLockedAccount(email, 'ACCOUNT_LOCKED');
-            console.app(`Account locked detected after login: ${email}`);
+            console.app(`Phát hiện account bị khóa sau khi login: ${email}`);
             return;
         }
 
-        console.log(`✅ [${batchIndex + 1}] Successfully logged in: ${email}`);
-        console.app(`✅ [${batchIndex + 1}] Successfully logged in: ${email}`);
+        console.log(`[${batchIndex + 1}] Login thành công: ${email}`);
+        console.app(`[${batchIndex + 1}] Login thành công: ${email}`);
 
         // Check if page have elements id 'cvf-filtered-account-switcher-header-text' is exists
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -682,8 +682,8 @@ async function processAccount(accountLine, batchIndex) {
         });
 
         if (!accountSwitcherHeader) {
-            console.log(`🔄 [${batchIndex + 1}] Continuing login for: ${email}`)
-            console.app(`🔄 [${batchIndex + 1}] Continuing login for: ${email}`);
+            console.log(`[${batchIndex + 1}] Tiếp tục hoàn tất login cho: ${email}`)
+            console.app(`[${batchIndex + 1}] Tiếp tục hoàn tất login cho: ${email}`);
             try {
                 await require(path.join(__dirname, "..", "api", "business", "fillInfo.js")).continueLogin(page, loginForm);
             } catch (error) {
@@ -693,8 +693,8 @@ async function processAccount(accountLine, batchIndex) {
             await require(path.join(__dirname, "..", "api", "business", "fillInfo.js")).fillInfo(page, loginForm);
             await require(path.join(__dirname, "..", "api", "business", "fillInfo.js")).finalSetup(page, loginForm);
         } else {
-            console.log(`🔄 [${batchIndex + 1}] Account switcher header found, selecting business account...`)
-            console.app(`🔄 [${batchIndex + 1}] Account switcher header found, selecting business account...`);
+            console.log(`[${batchIndex + 1}] Phát hiện màn chọn account, đang chọn account business...`)
+            console.app(`[${batchIndex + 1}] Phát hiện màn chọn account, đang chọn account business...`);
             try {
                 await page.waitForSelector('[data-test-id="accountType"]', { timeout: 10000 });
                 const businessAccounts = await page.$$('[data-test-id="accountType"]');
@@ -705,7 +705,7 @@ async function processAccount(accountLine, batchIndex) {
                         await account.click();
 
                         await page.waitForNavigation({ timeout: 30000 }).catch(e =>
-                            console.log(`⚠️ [${batchIndex + 1}] Navigation timeout after clicking business account: ${e.message}`)
+                            console.log(`[${batchIndex + 1}] Chờ chuyển trang sau khi chọn account business bị timeout: ${e.message}`)
                         );
                         break;
                     }
@@ -715,11 +715,11 @@ async function processAccount(accountLine, batchIndex) {
                     return;
                 }
             } catch (error) {
-                console.error(`❌ [${batchIndex + 1}] Error selecting business account: ${error.message}`);
-                console.app(`❌ [${batchIndex + 1}] Error selecting business account: ${error.message}`);
+                console.error(`[${batchIndex + 1}] Lỗi khi chọn account business: ${error.message}`);
+                console.app(`[${batchIndex + 1}] Lỗi khi chọn account business: ${error.message}`);
             }
             try {
-                console.log(`🔍 [${batchIndex + 1}] Looking for Complete registration button`);
+                console.log(`[${batchIndex + 1}] Đang tìm nút Complete registration`);
                 if (await stopIfLocked(page, email, 'before business registration check')) {
                     return;
                 }
@@ -733,10 +733,10 @@ async function processAccount(accountLine, batchIndex) {
                     return elements.length > 0;
                 });
                 if (completeRegButton) {
-                    console.log(`🖱️ [${batchIndex + 1}] Clicking Complete registration button`);
+                    console.log(`[${batchIndex + 1}] Đang bấm nút Complete registration`);
                     await Promise.all([
                         page.waitForNavigation({ timeout: 30000 }).catch(e =>
-                            console.log(`⚠️ [${batchIndex + 1}] Navigation timeout after clicking: ${e.message}`)
+                            console.log(`[${batchIndex + 1}] Chờ chuyển trang sau khi bấm bị timeout: ${e.message}`)
                         ),
                         page.click('[data-testid="Primary.REGISTRATION_START_COMPLETE_REGISTRATION.redirect"]').catch(() =>
                             page.evaluate(() => {
@@ -746,7 +746,7 @@ async function processAccount(accountLine, batchIndex) {
                             })
                         )
                     ]);
-                    console.log(`✓ [${batchIndex + 1}] Clicked Complete registration button`);
+                    console.log(`[${batchIndex + 1}] Đã bấm nút Complete registration`);
 
                     if (await stopIfLocked(page, email, 'after complete registration click')) {
                         return;
@@ -756,8 +756,8 @@ async function processAccount(accountLine, batchIndex) {
                         return;
                     }
 
-                    console.log(`Business account already selected for ${email}, continuing to card flow`);
-                    console.app(`Business account already selected for ${email}, continuing to card flow`);
+                    console.log(`Account business đã được chọn cho ${email}, tiếp tục sang flow thẻ`);
+                    console.app(`Account business đã được chọn cho ${email}, tiếp tục sang flow thẻ`);
                     addBusinessAccount(email);
                     await runBusinessAddressFlow(page, email);
                     await clickStartBrowsingIfPresent(page, email);
@@ -777,8 +777,8 @@ async function processAccount(accountLine, batchIndex) {
             return;
         }
 
-        console.log(`✅ [${batchIndex + 1}] Business account setup completed for: ${email}`);
-        console.app(`✅ [${batchIndex + 1}] Business account setup completed for: ${email}`);
+        console.log(`[${batchIndex + 1}] Đã hoàn tất setup account business cho: ${email}`);
+        console.app(`[${batchIndex + 1}] Đã hoàn tất setup account business cho: ${email}`);
 
         // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
         addBusinessAccount(email);
@@ -789,13 +789,13 @@ async function processAccount(accountLine, batchIndex) {
     } catch (error) {
         if (String(error.message || '').includes('ACCOUNT_LOCKED') || String(error.message || '').includes('account-status') || await isAccountLockedPage(page)) {
             markLockedAccount(email, 'ACCOUNT_LOCKED');
-            console.app(`Account locked detected: ${email}`);
+            console.app(`Phát hiện account bị khóa: ${email}`);
             return;
         }
 
         if (error.message.includes("ACCOUNT_ALREADY_BUSINESS") && page && !page.isClosed()) {
-            console.log(`Business account already available for ${email}, continuing to card flow`);
-            console.app(`Business account already available for ${email}, continuing to card flow`);
+            console.log(`Account business đã có sẵn cho ${email}, tiếp tục sang flow thẻ`);
+            console.app(`Account business đã có sẵn cho ${email}, tiếp tục sang flow thẻ`);
             addBusinessAccount(email);
             await runBusinessAddressFlow(page, email);
             await clickStartBrowsingIfPresent(page, email);
@@ -804,8 +804,8 @@ async function processAccount(accountLine, batchIndex) {
         }
 
         if (error.message.includes("Navigating frame was detached")) {
-            console.log(`✅ [${batchIndex + 1}] Business account setup completed for: ${email} (frame detached - likely success)`);
-            console.app(`✅ [${batchIndex + 1}] Business account setup completed for: ${email} (frame detached - likely success)`); 
+            console.log(`[${batchIndex + 1}] Đã hoàn tất setup account business cho: ${email} (frame bị detach, khả năng đã thành công)`);
+            console.app(`[${batchIndex + 1}] Đã hoàn tất setup account business cho: ${email} (frame bị detach, khả năng đã thành công)`); 
             
             // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
             addBusinessAccount(email);
@@ -816,15 +816,15 @@ async function processAccount(accountLine, batchIndex) {
             }
             
         } else if (error.message.includes("ACCOUNT_ALREADY_BUSINESS")) {
-            console.log(`✅ [${batchIndex + 1}] Account is already a business account: ${email}`);
-            console.app(`✅ [${batchIndex + 1}] Account is already a business account: ${email}`);
+            console.log(`[${batchIndex + 1}] Account đã là business: ${email}`);
+            console.app(`[${batchIndex + 1}] Account đã là business: ${email}`);
             
             // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
             addBusinessAccount(email);
             
         } else {
-            console.error(`❌ [${batchIndex + 1}] Error logging in ${email}:`, error.message);
-            console.app(`❌ [${batchIndex + 1}] Error logging in ${email}: ${error.message}`);
+            console.error(`[${batchIndex + 1}] Lỗi khi login ${email}:`, error.message);
+            console.app(`[${batchIndex + 1}] Lỗi khi login ${email}: ${error.message}`);
         }
     } finally {
         // Close browser
@@ -836,9 +836,9 @@ async function processAccount(accountLine, batchIndex) {
                 if (index > -1) {
                     activeBrowsers.splice(index, 1);
                 }
-                console.log(`🚪 [${batchIndex + 1}] Browser closed for: ${email}`);
+                console.log(`[${batchIndex + 1}] Đã đóng trình duyệt cho: ${email}`);
             } catch (closeError) {
-                console.error(`⚠️ [${batchIndex + 1}] Error closing browser for ${email}:`, closeError.message);
+                console.error(`[${batchIndex + 1}] Lỗi khi đóng trình duyệt cho ${email}:`, closeError.message);
             }
         }
     }
@@ -855,40 +855,40 @@ function randomInt(min, max) {
  * Cleanup function to close all browsers
  */
 async function cleanup() {
-    console.log("🧹 Cleaning up browsers...");
-    console.app("🧹 Cleaning up browsers...");
+    console.log("Đang dọn dẹp các trình duyệt...");
+    console.app("Đang dọn dẹp các trình duyệt...");
 
     const closePromises = activeBrowsers.map(async (browser) => {
         try {
             await browser.close();
         } catch (error) {
-            console.error("Error closing browser:", error);
+            console.error("Lỗi khi đóng trình duyệt:", error);
         }
     });
 
     await Promise.allSettled(closePromises);
     activeBrowsers = [];
 
-    console.log("✅ Cleanup completed!");
-    console.app("✅ Cleanup completed!");
+    console.log("Đã dọn dẹp xong!");
+    console.app("Đã dọn dẹp xong!");
 }
 
 // Handle process termination
 process.on('SIGINT', async () => {
-    console.log("\n🛑 Process interrupted. Cleaning up...");
+    console.log("\nTiến trình bị ngắt. Đang dọn dẹp...");
     await cleanup();
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-    console.log("\n🛑 Process terminated. Cleaning up...");
+    console.log("\nTiến trình đã dừng. Đang dọn dẹp...");
     await cleanup();
     process.exit(0);
 });
 
 async function waitForPageLoad(page, timeout = 30000) {
     try {
-        console.log('🔄 Waiting for page to load completely...');
+        console.log('Đang chờ trang tải xong...');
         
         // Wait for document ready state
         await page.evaluate(() => {
@@ -905,16 +905,16 @@ async function waitForPageLoad(page, timeout = 30000) {
             waitUntil: 'networkidle0', 
             timeout 
         }).catch(() => {
-            console.log('⚠️ Network idle timeout, continuing anyway...');
+            console.log('Chờ network idle bị timeout, vẫn tiếp tục...');
         });
         
         // Additional wait for any dynamic content
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        console.log('✅ Page loaded successfully');
+        console.log('Trang đã tải xong');
         
     } catch (error) {
-        console.log(`⚠️ Page load timeout: ${error.message}, continuing anyway...`);
+        console.log(`Chờ tải trang bị timeout: ${error.message}, vẫn tiếp tục...`);
         
         // Fallback: just wait for document ready state
         await page.evaluate(() => {

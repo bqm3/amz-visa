@@ -27,8 +27,8 @@ class AccountQueueManager {
             return !this.lockedAccounts.has(email);
         });
 
-        console.app(`[AccountQueue] Initialized with ${this.availableAccounts.length} available accounts`);
-        console.app(`[AccountQueue] Filtered out ${this.lockedAccounts.size} locked accounts`);
+        console.app(`[Hàng đợi account] Đã khởi tạo ${this.availableAccounts.length} account khả dụng`);
+        console.app(`[Hàng đợi account] Đã bỏ qua ${this.lockedAccounts.size} account bị khóa`);
         
         return this.availableAccounts.length;
     }
@@ -52,10 +52,10 @@ class AccountQueueManager {
                     }
                 });
                 
-                console.app(`[AccountQueue] Loaded ${this.lockedAccounts.size} locked accounts`);
+                console.app(`[Hàng đợi account] Đã tải ${this.lockedAccounts.size} account bị khóa`);
             }
         } catch (err) {
-            console.app(`[AccountQueue] Error loading locked accounts: ${err.message}`);
+            console.app(`[Hàng đợi account] Lỗi khi tải danh sách account bị khóa: ${err.message}`);
         }
     }
 
@@ -73,7 +73,7 @@ class AccountQueueManager {
      */
     getNextAccount(chromeId) {
         if (this.availableAccounts.length === 0) {
-            console.app(`[AccountQueue] No more accounts available for Chrome ${chromeId}`);
+            console.app(`[Hàng đợi account] Chrome ${chromeId}: đã hết account khả dụng`);
             return null;
         }
 
@@ -81,7 +81,7 @@ class AccountQueueManager {
         this.processingAccounts.set(chromeId, account);
         
         const email = this.extractEmail(account);
-        console.app(`[AccountQueue] Chrome ${chromeId} assigned account: ${email}`);
+        console.app(`[Hàng đợi account] Chrome ${chromeId}: nhận account ${email}`);
         
         return account;
     }
@@ -96,7 +96,7 @@ class AccountQueueManager {
             const email = this.extractEmail(account);
             this.completedAccounts.add(email);
             this.processingAccounts.delete(chromeId);
-            console.app(`[AccountQueue] Chrome ${chromeId} completed account: ${email}`);
+            console.app(`[Hàng đợi account] Chrome ${chromeId}: xử lý xong account ${email}`);
         }
     }
 
@@ -114,7 +114,7 @@ class AccountQueueManager {
             // Save to locked_accounts.txt
             this.saveLockedAccount(email);
             
-            console.app(`[AccountQueue] Chrome ${chromeId} marked account as locked: ${email}`);
+            console.app(`[Hàng đợi account] Chrome ${chromeId}: đánh dấu account bị khóa ${email}`);
         }
     }
 
@@ -128,7 +128,7 @@ class AccountQueueManager {
             const email = this.extractEmail(account);
             this.failedAccounts.add(email);
             this.processingAccounts.delete(chromeId);
-            console.app(`[AccountQueue] Chrome ${chromeId} marked account as failed: ${email}`);
+            console.app(`[Hàng đợi account] Chrome ${chromeId}: đánh dấu account lỗi ${email}`);
         }
     }
 
@@ -143,7 +143,7 @@ class AccountQueueManager {
         try {
             fs.appendFileSync(lockedFilePath, line, 'utf8');
         } catch (err) {
-            console.app(`[AccountQueue] Error saving locked account: ${err.message}`);
+            console.app(`[Hàng đợi account] Lỗi khi lưu account bị khóa: ${err.message}`);
         }
     }
 

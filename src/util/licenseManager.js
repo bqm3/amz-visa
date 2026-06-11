@@ -96,7 +96,7 @@ function readStoredLicense() {
     if (!fs.existsSync(licensePath)) return null;
     return JSON.parse(fs.readFileSync(licensePath, 'utf8'));
   } catch (error) {
-    console.log(`Failed to read stored license: ${error.message}`);
+    console.log(`Không thể đọc license đã lưu: ${error.message}`);
     return null;
   }
 }
@@ -111,7 +111,7 @@ function clearStoredLicense() {
     const licensePath = getLicensePath();
     if (fs.existsSync(licensePath)) fs.unlinkSync(licensePath);
   } catch (error) {
-    console.log(`Failed to clear stored license: ${error.message}`);
+    console.log(`Không thể xóa license đã lưu: ${error.message}`);
   }
 }
 
@@ -256,7 +256,7 @@ async function ensureLicense() {
         return await activateLicense(payload.codeId);
       }
     } catch (error) {
-      console.log(`License refresh failed: ${error.message}`);
+      console.log(`Không thể làm mới license: ${error.message}`);
     }
 
     clearStoredLicense();

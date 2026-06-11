@@ -149,11 +149,11 @@ function generateRandomAddress() {
 
 // ✅ FUNCTION GET ADDRESS VỚI ERROR HANDLING
 async function getAddressData(maxRetries = 3) {
-    console.log('🏠 Attempting to get address data...');
+    console.log('Đang lấy dữ liệu địa chỉ...');
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            console.log(`📍 Attempt ${attempt}/${maxRetries} - Using API...`);
+            console.log(`Lần ${attempt}/${maxRetries} - gọi API địa chỉ...`);
             
             // ✅ TRY API FIRST
             const { getAddress } = await import('random-addresses-generator');
@@ -166,7 +166,7 @@ async function getAddressData(maxRetries = 3) {
             // ✅ VALIDATE API RESPONSE
             if (Array.isArray(addressData) && addressData.length > 0) {
                 const address = addressData[0];
-                console.log('📍 API Response:', JSON.stringify(address, null, 2));
+                console.log('Phản hồi API địa chỉ:', JSON.stringify(address, null, 2));
                 
                 // Check if required fields exist and not undefined
                 if (address && 
@@ -174,30 +174,30 @@ async function getAddressData(maxRetries = 3) {
                     address.buildingNo !== 'undefined' && 
                     address.buildingNo.toString().trim() !== '') {
                     
-                    console.log('✅ API address valid:', address.buildingNo);
+                    console.log('Địa chỉ từ API hợp lệ:', address.buildingNo);
                     return address;
                 } else {
-                    console.log('⚠️ API returned invalid buildingNo:', address?.buildingNo);
+                    console.log('API trả về buildingNo không hợp lệ:', address?.buildingNo);
                 }
             } else {
-                console.log('⚠️ API returned empty or invalid data:', addressData);
+                console.log('API trả về dữ liệu rỗng hoặc không hợp lệ:', addressData);
             }
             
         } catch (apiError) {
-            console.log(`❌ API attempt ${attempt} failed:`, apiError.message);
+            console.log(`Lần gọi API ${attempt} thất bại:`, apiError.message);
         }
         
         // Wait before next attempt
         if (attempt < maxRetries) {
-            console.log('⏳ Waiting 2 seconds before next attempt...');
+            console.log('Chờ 2 giây trước khi thử lại...');
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
     }
     
     // ✅ FALLBACK TO GENERATED ADDRESS
-    console.log('🔄 API failed, using fallback address generator...');
+    console.log('API lỗi, dùng bộ tạo địa chỉ dự phòng...');
     const fallbackAddress = generateRandomAddress();
-    console.log('✅ Generated fallback address:', fallbackAddress.buildingNo);
+    console.log('Đã tạo địa chỉ dự phòng:', fallbackAddress.buildingNo);
     return fallbackAddress;
 }
 
@@ -206,7 +206,7 @@ async function addAddress(page, options = {}) {
     const apiRetries = Number.isInteger(options.apiRetries) ? options.apiRetries : 3;
     let addressData = await getAddressData(apiRetries);
     
-    console.log('🏠 Final address data:', JSON.stringify(addressData, null, 2));
+    console.log('Dữ liệu địa chỉ cuối cùng:', JSON.stringify(addressData, null, 2));
 
     const alreadyOnAddressForm = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
     if (!alreadyOnAddressForm) {
@@ -256,7 +256,7 @@ async function addAddress(page, options = {}) {
             String(Math.floor(200 + Math.random() * 800)) +
             String(Math.floor(1000 + Math.random() * 9000));
         
-        console.log('📱 Generated phone number:', phoneNumber);
+        console.log('Đã tạo số điện thoại:', phoneNumber);
         
         await puppeteer.Locator.race([
             targetPage.locator('::-p-aria(Phone number)'),
@@ -321,7 +321,7 @@ async function addAddress(page, options = {}) {
             stateToUse = stateToUse.toUpperCase();
         }
 
-        console.log(`?? Attempt ${addressRetries}/${maxAddressRetries} - Using address: ${addressToUse}`);
+        console.log(`Lần ${addressRetries}/${maxAddressRetries} - dùng địa chỉ: ${addressToUse}`);
 
         try {
             await page.waitForSelector('#address-ui-widgets-enterAddressLine1', { timeout: 10000 });
@@ -331,7 +331,7 @@ async function addAddress(page, options = {}) {
             await page.locator('#address-ui-widgets-enterAddressPostalCode').fill(zipToUse);
             filled = true;
         } catch (inputError) {
-            console.log(`? Address input failed: ${inputError.message}`);
+            console.log(`Nhập địa chỉ thất bại: ${inputError.message}`);
             addressData = await getAddressData(apiRetries);
         }
     }
@@ -380,7 +380,7 @@ async function addAddress(page, options = {}) {
         await Promise.all(promises);
     }
     
-    console.log('✅ Address added successfully!');
+    console.log('Đã thêm địa chỉ thành công!');
 }
 
 module.exports = {
