@@ -6,6 +6,7 @@ const axios = require('axios');
 
 const APP_ID = 'amz-us-app';
 const LICENSE_FILE_NAME = 'license.json';
+const MACHINE_ID_FILE_NAME = 'machine-id.txt';
 
 function getLicenseDir() {
   const baseDir =
@@ -20,34 +21,34 @@ function getLicensePath() {
 }
 
 function getMachineFingerprint() {
-  const networkInterfaces = os.networkInterfaces();
-  const macs = [];
+  const machineIdPath = path.join(getLicenseDir(), MACHINE_ID_FILE_NAME);
 
-  for (const [name, entries] of Object.entries(networkInterfaces)) {
-    for (const entry of entries || []) {
-      if (!entry || entry.internal || !entry.mac || entry.mac === '00:00:00:00:00:00') continue;
-      macs.push(`${name}:${entry.mac}`);
+  try {
+    if (fs.existsSync(machineIdPath)) {
+      const existing = String(fs.readFileSync(machineIdPath, 'utf8')).trim();
+      if (existing) {
+        return existing;
+      }
     }
+  } catch (error) {
+    console.log(`Failed to read stored machine ID: ${error.message}`);
   }
 
-  macs.sort();
+  const generated = crypto.randomUUID();
 
-  const raw = [
-    `hostname=${os.hostname()}`,
-    `platform=${os.platform()}`,
-    `arch=${os.arch()}`,
-    `release=${os.release()}`,
-    `cpu=${(os.cpus()[0] && os.cpus()[0].model) || 'unknown'}`,
-    `totalmem=${os.totalmem()}`,
-    `macs=${macs.join(',')}`
-  ].join('|');
+  try {
+    ensureLicenseDir();
+    fs.writeFileSync(machineIdPath, generated, 'utf8');
+  } catch (error) {
+    console.log(`Failed to persist machine ID: ${error.message}`);
+  }
 
-  return crypto.createHash('sha256').update(raw).digest('hex');
+  return generated;
 }
 
 function getLicenseServerUrl() {
   return String(
-    'https://lisense-server.vercel.app' ||
+    process.env.AMZ_LICENSE_SERVER_URL ||
       process.env.LICENSE_SERVER_URL ||
       ''
   ).trim().replace(/\/+$/, '');

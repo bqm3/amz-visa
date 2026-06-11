@@ -37,6 +37,7 @@ const {
   ensureLicense,
   readStoredLicense
 } = require('./src/util/licenseManager');
+const { ensureBundledLicenseServer } = require('./src/util/licenseServerLauncher');
 const createLicenseDialog = require('./src/ui/licenseDialog');
 
 function setupTimestampedLogging() {
@@ -100,6 +101,8 @@ global.data.settings = {
 global.data.browser = {};
 
 async function bootstrap() {
+  await ensureBundledLicenseServer();
+
   const app = QApplication.instance();
   app.setQuitOnLastWindowClosed(true);
 

@@ -10,6 +10,8 @@
     "postbuild": "nodegui-packer --pack dist",
     "ver": "qode --version",
     "package": "nodegui-builder --name MyApp --output ./output --main main.js",
+    "package:portable": "nodegui-builder --name AmzUS --output ./output/portable --main main.js",
+    "package:exe": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-single-exe.ps1",
     "license:server": "node license-server/server.js",
     "license:code": "node license-server/tools/create-code.js"
   },
@@ -17,13 +19,24 @@
   "license": "MIT",
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
+    "@nodegui/artifact-installer": "^1.1.0",
     "@nodegui/nodegui": "^0.71.0",
+    "@nodegui/qode": "^18.12.1",
     "@nodegui/packer": "github:HerokeyVN/nodegui-packer",
     "axios": "^1.8.4",
+    "cmake-js": "^6.2.1",
+    "cross-env": "^7.0.3",
+    "cuid": "^2.1.8",
+    "manage-path": "^2.0.0",
+    "memoize-one": "^5.2.1",
     "mongodb": "^6.15.0",
     "node-2fa": "^2.0.3",
+    "node-addon-api": "^4.0.0",
+    "postcss": "^7.0.17",
+    "postcss-nodegui-autoprefixer": "0.0.7",
     "puppeteer": "^24.6.1",
-    "random-addresses-generator": "github:HerokeyVN/random-addresses-generator"
+    "random-addresses-generator": "github:HerokeyVN/random-addresses-generator",
+    "tar": "^6.0.1"
   },
   "devDependencies": {
     "fs-extra": "^11.3.0",

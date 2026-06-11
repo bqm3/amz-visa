@@ -30,7 +30,7 @@ function createLicenseDialog() {
 
   const serverLabel = new QLabel();
   const serverUrl = getLicenseServerUrl();
-  serverLabel.setText(serverUrl ? `License server: ${serverUrl}` : 'License server: chua cau hinh');
+  serverLabel.setText(`License server: ${serverUrl || 'local bundled server'}`);
   serverLabel.setStyleSheet('color: #000; font-size: 11px;');
 
   const machineRow = new QBoxLayout(0);
