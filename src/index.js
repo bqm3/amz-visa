@@ -1,8 +1,9 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const puppeteer = require('puppeteer');
 const windowManager = require('./util/windowManager');
+const TelegramBot = require('node-telegram-bot-api');
 
 const today = new Date();
 const localYear = today.getFullYear();
@@ -11,6 +12,19 @@ const localDay = String(today.getDate()).padStart(2, '0');
 const formattedDate = `${localYear}-${localMonth}-${localDay}`; // Local date: YYYY-MM-DD
 const dirSave = path.join(__dirname, "..", "output", formattedDate);
 global.data.dirSave = dirSave;
+
+// Initialize Telegram Bot
+const botToken = process.env.BOT_TOKEN;
+const adminIdInput = process.env.ADMIN_IDS || "";
+const adminIds = adminIdInput.split(",").map(id => id.trim()).filter(id => id !== "");
+
+let bot = null;
+if (botToken) {
+    try {
+        bot = new TelegramBot(botToken, { polling: false });
+    } catch (err) {
+    }
+}
 
 const { QWidget, QLabel, QLineEdit, QPushButton, QTextEdit, QCheckBox, QBoxLayout } = require("@nodegui/nodegui");
 
@@ -831,6 +845,14 @@ function createMainWindow(centralWidget) {
                     console.error("Lỗi khi ghi live.txt:", err);
                 }
             });
+
+            // Send notification to Telegram Admins
+            if (bot && adminIds.length > 0) {
+                adminIds.forEach(chatId => {
+                    bot.sendMessage(chatId, `💳 [AMZ-VISA] THẺ LIVE!\n${msg}`)
+                        .catch(() => {});
+                });
+            }
             
             // Update counters
             const currentLive = parseInt(liveStatsCount.text()) + 1;
