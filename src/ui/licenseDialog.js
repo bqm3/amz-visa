@@ -1,5 +1,5 @@
 const { QDialog, QBoxLayout, QLabel, QLineEdit, QTextEdit, QPushButton, QApplication } = require('@nodegui/nodegui');
-const { activateLicense, getMachineFingerprint, getLicenseServerUrl } = require('../util/licenseManager');
+const { activateLicense, getMachineFingerprint } = require('../util/licenseManager');
 
 function createLicenseDialog() {
   const dialog = new QDialog();
@@ -28,10 +28,6 @@ function createLicenseDialog() {
   copyMachineButton.setText('Copy Machine ID');
   copyMachineButton.setStyleSheet('background-color: #45475a; color: #000;');
 
-  const serverLabel = new QLabel();
-  const serverUrl = getLicenseServerUrl();
-  serverLabel.setText(`License server: ${serverUrl || 'local bundled server'}`);
-  serverLabel.setStyleSheet('color: #000; font-size: 11px;');
 
   const machineRow = new QBoxLayout(0);
   machineRow.setSpacing(10);
@@ -65,7 +61,6 @@ function createLicenseDialog() {
   layout.addWidget(title);
   layout.addWidget(hint);
   layout.addLayout(machineRow);
-  layout.addWidget(serverLabel);
   layout.addWidget(codeInput);
   layout.addWidget(status, 1);
   layout.addLayout(buttonRow);

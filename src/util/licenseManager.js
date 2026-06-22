@@ -2,6 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
 const axios = require('axios');
 
 const APP_ID = 'amz-us-app';
@@ -23,25 +24,73 @@ function getLicensePath() {
 function getMachineFingerprint() {
   const machineIdPath = path.join(getLicenseDir(), MACHINE_ID_FILE_NAME);
 
+  // Đọc file cache trước
   try {
     if (fs.existsSync(machineIdPath)) {
       const existing = String(fs.readFileSync(machineIdPath, 'utf8')).trim();
-      if (existing) {
-        return existing;
-      }
+      if (existing) return existing;
     }
-  } catch (error) {
-    console.log(`Failed to read stored machine ID: ${error.message}`);
+  } catch (e) {}
+
+  let generated = '';
+
+  if (process.platform === 'win32') {
+    // 1. Windows: MachineGuid từ Registry (ổn định nhất)
+    try {
+      const output = execSync(
+        'reg query HKLM\\Software\\Microsoft\\Cryptography /v MachineGuid',
+        { encoding: 'utf8', timeout: 3000 }
+      );
+      const match = output.match(/MachineGuid\s+REG_SZ\s+([^\r\n]+)/);
+      if (match?.[1]) generated = match[1].trim();
+    } catch (e) {}
+
+    // 2. Fallback: Motherboard serial
+    if (!generated) {
+      try {
+        const out = execSync('wmic baseboard get serialnumber', { encoding: 'utf8', timeout: 3000 });
+        const lines = out.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines[1]) generated = lines[1];
+      } catch (e) {}
+    }
+
+  } else if (process.platform === 'linux') {
+    // Linux: /etc/machine-id (ổn định, không đổi khi xóa app)
+    try {
+      generated = fs.readFileSync('/etc/machine-id', 'utf8').trim();
+    } catch (e) {}
+
+    // Fallback: DMI product UUID
+    if (!generated) {
+      try {
+        generated = execSync('cat /sys/class/dmi/id/product_uuid', { encoding: 'utf8', timeout: 3000 }).trim();
+      } catch (e) {}
+    }
+
+  } else if (process.platform === 'darwin') {
+    // macOS: Hardware UUID
+    try {
+      const out = execSync(
+        "ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/{print $NF}'",
+        { encoding: 'utf8', timeout: 3000 }
+      );
+      generated = out.trim().replace(/"/g, '');
+    } catch (e) {}
   }
 
-  const generated = crypto.randomUUID();
+  // Cuối cùng mới random (tránh dùng nếu có thể)
+  if (!generated) {
+    console.warn('Không lấy được hardware ID, dùng random UUID (không ổn định)');
+    generated = crypto.randomUUID();
+  }
+
+  // Hash lại để chuẩn hóa độ dài và ẩn thông tin gốc
+  generated = crypto.createHash('sha256').update(generated).digest('hex');
 
   try {
     ensureLicenseDir();
     fs.writeFileSync(machineIdPath, generated, 'utf8');
-  } catch (error) {
-    console.log(`Failed to persist machine ID: ${error.message}`);
-  }
+  } catch (e) {}
 
   return generated;
 }
