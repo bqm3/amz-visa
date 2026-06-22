@@ -1,24 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Apollo\\Freelancer\\AMZ-Project\\amz-visa\\tools\\bootstrapper\\AmzBootstrapper.csproj": {}
+    "C:\\Users\\MANH\\ProjectManh\\amz-visa\\tools\\bootstrapper\\AmzBootstrapper.csproj": {}
   },
   "projects": {
-    "D:\\Apollo\\Freelancer\\AMZ-Project\\amz-visa\\tools\\bootstrapper\\AmzBootstrapper.csproj": {
+    "C:\\Users\\MANH\\ProjectManh\\amz-visa\\tools\\bootstrapper\\AmzBootstrapper.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Apollo\\Freelancer\\AMZ-Project\\amz-visa\\tools\\bootstrapper\\AmzBootstrapper.csproj",
+        "projectUniqueName": "C:\\Users\\MANH\\ProjectManh\\amz-visa\\tools\\bootstrapper\\AmzBootstrapper.csproj",
         "projectName": "AmzUSBootstrapper",
-        "projectPath": "D:\\Apollo\\Freelancer\\AMZ-Project\\amz-visa\\tools\\bootstrapper\\AmzBootstrapper.csproj",
-        "packagesPath": "C:\\Users\\dawn\\.nuget\\packages\\",
-        "outputPath": "D:\\Apollo\\Freelancer\\AMZ-Project\\amz-visa\\tools\\bootstrapper\\obj\\",
+        "projectPath": "C:\\Users\\MANH\\ProjectManh\\amz-visa\\tools\\bootstrapper\\AmzBootstrapper.csproj",
+        "packagesPath": "C:\\Users\\MANH\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\MANH\\ProjectManh\\amz-visa\\tools\\bootstrapper\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
-          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\dawn\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\MANH\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -50,6 +49,14 @@
       "frameworks": {
         "net8.0-windows7.0": {
           "targetAlias": "net8.0-windows",
+          "dependencies": {
+            "Microsoft.NET.ILLink.Tasks": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[8.0.19, )",
+              "autoReferenced": true
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -61,12 +68,31 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
+              "version": "[8.0.19, 8.0.19]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Runtime.win-x64",
+              "version": "[8.0.19, 8.0.19]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Runtime.win-x64",
+              "version": "[8.0.19, 8.0.19]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.308/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304/PortableRuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "win-x64": {
+          "#import": []
         }
       }
     }

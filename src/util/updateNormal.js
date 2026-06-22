@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const { findChrome } = require('./chromeFinder');
 const windowManager = require('./windowManager');
 const sharedCardQueue = require('./sharedCardQueue');
 
@@ -257,9 +258,11 @@ async function processAccount(accountLine, index) {
             }
         }, null, 2), 'utf8');
 
+        const chromePath = findChrome();
         const launchOptions = {
             headless: !global.data.settings.showBrowser,
             userDataDir,
+            ...(chromePath ? { executablePath: chromePath } : {}),
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',

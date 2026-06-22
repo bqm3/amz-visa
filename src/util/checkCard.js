@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const puppeteer = require('puppeteer');
+const { findChrome } = require('./chromeFinder');
 const windowManager = require('./windowManager');
 const cardTracker = require('./cardTracker');
 
@@ -432,10 +433,12 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
         }
     }, null, 2), 'utf8');
 
+    const chromePath = findChrome();
     const launchOptions = {
         headless: !global.data.settings.showBrowser && global.data.parentAcc.geminiKey != "",
         timeout: 60000,
         userDataDir,
+        ...(chromePath ? { executablePath: chromePath } : {}),
         prefs: {
             credentials_enable_service: false,
             'profile.password_manager_enabled': false,
@@ -486,20 +489,22 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
     try {
         browser = await puppeteer.launch(launchOptions);
     } catch (launchError) {
-        if (String(launchError.message || '').includes('Could not find Chrome')) {
-            const installedChrome = puppeteer.executablePath();
-            console.log(`Chrome ${chromeIndex + 1}: thử lại với executablePath: ${installedChrome}`);
-            browser = await puppeteer.launch({
-                ...launchOptions,
-                executablePath: installedChrome
-            });
+        const errMsg = String(launchError.message || '');
+        if (errMsg.includes('Could not find Chrome') || errMsg.includes('executablePath') || errMsg.includes('Browser was not found')) {
+            const chromePath = findChrome();
+            if (chromePath) {
+                console.log(`Chrome ${chromeIndex + 1}: thử lại với executablePath: ${chromePath}`);
+                browser = await puppeteer.launch({ ...launchOptions, executablePath: chromePath });
+            } else {
+                console.app(`Chrome ${chromeIndex + 1}: không tìm thấy Chrome - ${launchError.message}`);
+                const nextAcc = getNextAccount();
+                if (nextAcc) {
+                    setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 5000);
+                }
+                return;
+            }
         } else {
             console.app(`Chrome ${chromeIndex + 1}: mở Chrome thất bại - ${launchError.message}`);
-            // Try next account
-            const nextAcc = getNextAccount();
-            if (nextAcc) {
-                setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 5000);
-            }
             return;
         }
     }

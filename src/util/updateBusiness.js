@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const { findChrome } = require('./chromeFinder');
 const sharedCardQueue = require('./sharedCardQueue');
 const windowManager = require('./windowManager'); // ✅ ADD IMPORT
 
@@ -597,10 +598,12 @@ async function processAccount(accountLine, batchIndex) {
             }
         }, null, 2), 'utf8');
 
+        const chromePath = findChrome();
         // Launch browser with positioned window
         const launchOptions = {
             headless: !global.data.settings.showBrowser,
             userDataDir,
+            ...(chromePath ? { executablePath: chromePath } : {}),
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -636,6 +639,7 @@ async function processAccount(accountLine, batchIndex) {
         activeBrowsers.push(browser);
 
         page = await browser.newPage();
+
         
         // ✅ SET VIEWPORT TO MATCH WINDOW SIZE
         await page.setViewport({
