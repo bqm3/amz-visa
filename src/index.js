@@ -380,9 +380,40 @@ function createMainWindow(centralWidget) {
     settingsLayout.addWidget(settingsButtonsContainer);
     settingsLayout.addStretch(1);
 
+    // Instructions / Guide Section
+    const guideSection = new QWidget();
+    guideSection.setProperty("class", "section");
+    const guideLayout = new QBoxLayout(2); // TopToBottom
+    guideLayout.setContentsMargins(0, 0, 0, 0);
+    guideLayout.setSpacing(6);
+    guideSection.setLayout(guideLayout);
+
+    const guideTitle = new QLabel();
+    guideTitle.setText("User Guide (Hướng dẫn sử dụng)");
+    guideTitle.setProperty("class", "section-title");
+
+    const guideText = new QLabel();
+    guideText.setText(
+        "• Quy trình chạy:\n" +
+        "  1. Chuẩn bị file dữ liệu (Accounts, Cards, Proxies).\n" +
+        "  2. Ấn nút 'Apply Config' để nạp cấu hình.\n" +
+        "  3. Ấn 'Business Login' hoặc 'Normal Login' để chạy.\n\n" +
+        "• Định dạng dữ liệu:\n" +
+        "  - Accounts: Email|Password|2FA_Secret\n" +
+        "  - Cards: Number|Month|Year|CVC|Name\n" +
+        "  - Proxies: IP:Port:User:Pass hoặc IP:Port"
+    );
+    guideText.setStyleSheet("color: #a6adc8; font-size: 12px;");
+
+    guideLayout.addWidget(guideTitle);
+    guideLayout.addWidget(guideText);
+
     // Add to left layout
     leftLayout.addWidget(cardLogSection, 1);
-    leftLayout.addWidget(settingsSection);    // RIGHT SIDE: Container for data files and terminal
+    leftLayout.addWidget(settingsSection);
+    leftLayout.addWidget(guideSection);
+
+    // RIGHT SIDE: Container for data files and terminal
     const rightContainer = new QWidget();
     rightContainer.setProperty("class", "card");
     const rightLayout = new QBoxLayout(2); // TopToBottom
@@ -464,12 +495,15 @@ function createMainWindow(centralWidget) {
 
     const accButton = new QPushButton();
     accButton.setText("Accounts");
+    accButton.setToolTip("Định dạng acc.txt:\nEmail|Password|2FA_Secret\nVí dụ: user@mail.com|123456|SECRET2FA");
 
     const cardButton = new QPushButton();
     cardButton.setText("Cards");
+    cardButton.setToolTip("Định dạng card.txt:\nSố_Thẻ|Tháng|Năm|CVC|Tên_Chủ_Thẻ\nVí dụ: 4342570057946502|09|28|248|John Doe");
 
     const proxyButton = new QPushButton();
     proxyButton.setText("Proxies");
+    proxyButton.setToolTip("Định dạng proxies.txt:\nIP:Port:User:Pass hoặc IP:Port\nVí dụ: 1.2.3.4:8080:user:pass");
 
     fileButtonsLayout.addWidget(accButton);
     fileButtonsLayout.addWidget(cardButton);
