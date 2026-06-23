@@ -33,6 +33,7 @@ loadDotEnvFile(path.join(__dirname, '.env.local'));
 const { QMainWindow, QWidget, QApplication, QIcon } = require("@nodegui/nodegui");
 const {
   activateLicense,
+  clearStoredLicense,
   decodePayload,
   ensureLicense,
   readStoredLicense
@@ -173,7 +174,16 @@ async function bootstrap() {
         }
         armExpiryTimer();
       } catch (error) {
+        // Nếu server từ chối vì lỗi client 4xx (mã đã xóa, máy khác...)
+        if (error.status && error.status >= 400 && error.status < 500) {
+          console.error(`Bản quyền bị server từ chối (${error.status}): ${error.message}`);
+          clearStoredLicense();
+          void promptLicenseRenewal();
+          return;
+        }
+
         if (/License da het han/i.test(error.message || '')) {
+          clearStoredLicense();
           void promptLicenseRenewal();
           return;
         }

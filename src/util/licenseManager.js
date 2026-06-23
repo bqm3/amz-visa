@@ -256,28 +256,26 @@ async function activateLicense(code) {
     const data = error?.response?.data;
     const serverMessage = data?.message || data?.error || error?.message || 'Unknown error';
 
+    let err;
     if (status === 409 && data?.error === 'CODE_ALREADY_USED') {
-      throw new Error(`Ma nay da duoc su dung roi`);
-    }
-
-    if (status === 400 && data?.error === 'CODE_MACHINE_MISMATCH') {
+      err = new Error(`Ma nay da duoc su dung roi`);
+    } else if (status === 400 && data?.error === 'CODE_MACHINE_MISMATCH') {
       const boundMachineId = data?.boundMachineId ? `; boundMachineId=${data.boundMachineId}` : '';
-      throw new Error(`Ma nay chi dung cho may khac${boundMachineId}`);
+      err = new Error(`Ma nay chi dung cho may khac${boundMachineId}`);
+    } else if (status === 410 && data?.error === 'LICENSE_EXPIRED') {
+      err = new Error('License da het han.');
+    } else if (status === 500 && data?.message === 'LICENSE_PRIVATE_KEY_PEM_INVALID_FORMAT') {
+      err = new Error('Khong dung dinh dang LICENSE_PRIVATE_KEY_PEM. Hay dán private key PEM that, khong phai public key hay chuoi da escape.');
+    } else if (status === 409 && data?.error === 'ACTIVATION_CONFLICT') {
+      err = new Error('Kich hoat dang xay ra xung dot, vui long thu lai.');
+    } else {
+      err = new Error(`Activate failed${status ? ` (${status})` : ''}: ${serverMessage}`);
     }
 
-    if (status === 410 && data?.error === 'LICENSE_EXPIRED') {
-      throw new Error('License da het han.');
+    if (status) {
+      err.status = status;
     }
-
-    if (status === 500 && data?.message === 'LICENSE_PRIVATE_KEY_PEM_INVALID_FORMAT') {
-      throw new Error('Khong dung dinh dang LICENSE_PRIVATE_KEY_PEM. Hay dán private key PEM that, khong phai public key hay chuoi da escape.');
-    }
-
-    if (status === 409 && data?.error === 'ACTIVATION_CONFLICT') {
-      throw new Error('Kich hoat dang xay ra xung dot, vui long thu lai.');
-    }
-
-    throw new Error(`Activate failed${status ? ` (${status})` : ''}: ${serverMessage}`);
+    throw err;
   }
 
   const bundle = response.data && (response.data.license || response.data.bundle || response.data);
@@ -294,18 +292,30 @@ async function activateLicense(code) {
 async function ensureLicense() {
   const stored = readStoredLicense();
   if (stored) {
+    // 1. Kiểm tra chữ ký & hạn dùng local trước
     const validation = await validateStoredLicenseAsync(stored);
-    if (validation.valid) {
-      return validation.payload;
+    if (!validation.valid) {
+      clearStoredLicense();
+      return null;
     }
 
+    // 2. Chữ ký local hợp lệ, check online xem code có còn tồn tại trong Database không
     try {
       const payload = decodePayload(stored);
       if (payload?.codeId) {
         return await activateLicense(payload.codeId);
       }
     } catch (error) {
-      console.log(`Không thể làm mới license: ${error.message}`);
+      // Nếu server từ chối vì lý do client (4xx) ví dụ: code không tồn tại, sai máy, hết hạn...
+      if (error.status && error.status >= 400 && error.status < 500) {
+        console.log(`Bản quyền bị server từ chối (${error.status}): ${error.message}. Xóa bản quyền local.`);
+        clearStoredLicense();
+        return null;
+      }
+      
+      // Nếu là lỗi mạng (offline) hoặc lỗi server 5xx, cho phép tiếp tục dùng bản quyền offline
+      console.log(`Lỗi kết nối hoặc lỗi server khi check online: ${error.message}. Sử dụng license offline.`);
+      return validation.payload;
     }
 
     clearStoredLicense();

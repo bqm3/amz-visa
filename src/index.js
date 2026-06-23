@@ -325,9 +325,9 @@ function createMainWindow(centralWidget) {
     actionLayout.setSpacing(10);
     actionContainer.setLayout(actionLayout);
 
-    const scanButton = new QPushButton();
-    scanButton.setText("Scan Card");
-    scanButton.setStyleSheet("background-color: #a6e3a1;");
+    // const scanButton = new QPushButton();
+    // scanButton.setText("Scan Card");
+    // scanButton.setStyleSheet("background-color: #a6e3a1;");
 
     const normalLoginButton = new QPushButton();
     normalLoginButton.setText("Normal Login");
@@ -337,14 +337,14 @@ function createMainWindow(centralWidget) {
     businessLoginButton.setText("Business Login");
     businessLoginButton.setStyleSheet("background-color: #f9e2af;");
 
-    const fileCardButton = new QPushButton();
-    fileCardButton.setText("Open Cards File");
+    // const fileCardButton = new QPushButton();
+    // fileCardButton.setText("Open Cards File");
 
-    actionLayout.addWidget(scanButton);
+    // actionLayout.addWidget(scanButton);
     actionLayout.addWidget(businessLoginButton);
     actionLayout.addWidget(normalLoginButton);
     actionLayout.addStretch(1);
-    actionLayout.addWidget(fileCardButton);
+    // actionLayout.addWidget(fileCardButton);
 
     cardLogLayout.addWidget(cardLogTitle);
     cardLogLayout.addWidget(cardInfoContainer, 1);
@@ -571,11 +571,11 @@ function createMainWindow(centralWidget) {
     let isProcessRunning = false;
     
     const disableButtons = (disabled) => {
-        scanButton.setEnabled(!disabled);
+        // scanButton.setEnabled(!disabled);
         businessLoginButton.setEnabled(!disabled);
         normalLoginButton.setEnabled(!disabled);
         applyConfigButton.setEnabled(!disabled);
-        fileCardButton.setEnabled(!disabled);
+        // fileCardButton.setEnabled(!disabled);
         accButton.setEnabled(!disabled);
         cardButton.setEnabled(!disabled);
         proxyButton.setEnabled(!disabled);
@@ -601,42 +601,42 @@ function createMainWindow(centralWidget) {
             }
         });
     });    
-    scanButton.addEventListener('clicked', async () => {
-        if (isProcessRunning) {
-            appendToTerminal(terminal.toPlainText() + "\n" + "Đang có tiến trình khác chạy. Vui lòng chờ...");
-            return;
-        }
-        
-        const value = parseInt(checkAfterInput.text());
-        if (isNaN(value) || value < 1) {
-            checkAfterInput.setText("60");
-        }
-        global.data.settings.checkAfter = Math.max(value, 1) * 1000;
-        global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
-        global.data.settings.addAddress = addAddressCheckbox.isChecked();
-        
-        isProcessRunning = true;
-        disableButtons(true);
-        global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
-        global.data.settings.addAddress = addAddressCheckbox.isChecked();
-        
-        // Reset vị trí cửa sổ trước khi bắt đầu.
-        windowManager.reset();
-        
-        appendToTerminal(terminal.toPlainText() + "\n" + `Đã khởi tạo lưới cửa sổ cho scan thẻ...`);
-        appendToTerminal(terminal.toPlainText() + "\n" + `Đang scan ${global.data.cardTotal || 0} thẻ, delay ${Math.max(value, 1)} giây...`);
-        
-        try {
-            await require(path.join(__dirname, "util", "checkCard.js"))();
-            appendToTerminal(terminal.toPlainText() + "\n" + "Đã scan thẻ xong!");
-        } catch (error) {
-            console.error("Lỗi trong lúc scan thẻ:", error);
-            appendToTerminal(terminal.toPlainText() + "\n" + "Lỗi trong lúc scan thẻ: " + error.message);
-        } finally {
-            isProcessRunning = false;
-            disableButtons(false);
-        }
-    });
+    // scanButton.addEventListener('clicked', async () => {
+    //     if (isProcessRunning) {
+    //         appendToTerminal(terminal.toPlainText() + "\n" + "Đang có tiến trình khác chạy. Vui lòng chờ...");
+    //         return;
+    //     }
+    //     
+    //     const value = parseInt(checkAfterInput.text());
+    //     if (isNaN(value) || value < 1) {
+    //         checkAfterInput.setText("60");
+    //     }
+    //     global.data.settings.checkAfter = Math.max(value, 1) * 1000;
+    //     global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
+    //     global.data.settings.addAddress = addAddressCheckbox.isChecked();
+    //     
+    //     isProcessRunning = true;
+    //     disableButtons(true);
+    //     global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
+    //     global.data.settings.addAddress = addAddressCheckbox.isChecked();
+    //     
+    //     // Reset vị trí cửa sổ trước khi bắt đầu.
+    //     windowManager.reset();
+    //     
+    //     appendToTerminal(terminal.toPlainText() + "\n" + `Đã khởi tạo lưới cửa sổ cho scan thẻ...`);
+    //     appendToTerminal(terminal.toPlainText() + "\n" + `Đang scan ${global.data.cardTotal || 0} thẻ, delay ${Math.max(value, 1)} giây...`);
+    //     
+    //     try {
+    //         await require(path.join(__dirname, "util", "checkCard.js"))();
+    //         appendToTerminal(terminal.toPlainText() + "\n" + "Đã scan thẻ xong!");
+    //     } catch (error) {
+    //         console.error("Lỗi trong lúc scan thẻ:", error);
+    //         appendToTerminal(terminal.toPlainText() + "\n" + "Lỗi trong lúc scan thẻ: " + error.message);
+    //     } finally {
+    //         isProcessRunning = false;
+    //         disableButtons(false);
+    //     }
+    // });
 
     normalLoginButton.addEventListener('clicked', async () => {
         if (isProcessRunning) {
@@ -716,15 +716,15 @@ function createMainWindow(centralWidget) {
         }
     });
 
-    fileCardButton.addEventListener('clicked', () => {
-        const childFilePath = path.join(__dirname, "data", 'card.txt');
-
-        exec(`notepad "${childFilePath}"`, (err) => {
-            if (err) {
-                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở card.txt: " + err.message);
-            }
-        });
-    });
+    // fileCardButton.addEventListener('clicked', () => {
+    //     const childFilePath = path.join(__dirname, "data", 'card.txt');
+    // 
+    //     exec(`notepad "${childFilePath}"`, (err) => {
+    //         if (err) {
+    //             appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở card.txt: " + err.message);
+    //         }
+    //     });
+    // });
 
     accButton.addEventListener('clicked', () => {
         const accFilePath = path.join(__dirname, "data", 'acc.txt');
