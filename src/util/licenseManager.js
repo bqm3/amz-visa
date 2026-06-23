@@ -80,7 +80,7 @@ function getMachineFingerprint() {
 
   // Cuối cùng mới random (tránh dùng nếu có thể)
   if (!generated) {
-    console.warn('Không lấy được hardware ID, dùng random UUID (không ổn định)');
+    // console.warn('Không lấy được hardware ID, dùng random UUID (không ổn định)');
     generated = crypto.randomUUID();
   }
 
@@ -125,12 +125,14 @@ async function fetchPublicKeyPem(serverUrl) {
     const key = String(body.publicKey || body.key || '').trim();
     return key;
   } catch (error) {
+    /*
     console.error('fetchPublicKeyPem failed:', {
       url: buildApiUrl(baseUrl, 'public-key'),
       message: error?.message || String(error),
       status: error?.response?.status,
       data: error?.response?.data
     });
+    */
     return '';
   }
 }
@@ -145,7 +147,7 @@ function readStoredLicense() {
     if (!fs.existsSync(licensePath)) return null;
     return JSON.parse(fs.readFileSync(licensePath, 'utf8'));
   } catch (error) {
-    console.log(`Không thể đọc license đã lưu: ${error.message}`);
+    // console.log(`Không thể đọc license đã lưu: ${error.message}`);
     return null;
   }
 }
@@ -160,7 +162,7 @@ function clearStoredLicense() {
     const licensePath = getLicensePath();
     if (fs.existsSync(licensePath)) fs.unlinkSync(licensePath);
   } catch (error) {
-    console.log(`Không thể xóa license đã lưu: ${error.message}`);
+    // console.log(`Không thể xóa license đã lưu: ${error.message}`);
   }
 }
 
@@ -236,7 +238,7 @@ async function activateLicense(code) {
 
   const publicKeyPem = await fetchPublicKeyPem(serverUrl);
   if (!publicKeyPem) {
-    throw new Error(`Khong lay duoc public key license tu server: ${buildApiUrl(serverUrl, 'public-key')}`);
+    throw new Error(`Khong lay duoc public key license tu server, vui long kiem tra lai cau hinh`);
   }
 
   const machineId = getMachineFingerprint();
@@ -308,13 +310,13 @@ async function ensureLicense() {
     } catch (error) {
       // Nếu server từ chối vì lý do client (4xx) ví dụ: code không tồn tại, sai máy, hết hạn...
       if (error.status && error.status >= 400 && error.status < 500) {
-        console.log(`Bản quyền bị server từ chối (${error.status}): ${error.message}. Xóa bản quyền local.`);
+        // console.log(`Bản quyền bị server từ chối (${error.status}): ${error.message}. Xóa bản quyền local.`);
         clearStoredLicense();
         return null;
       }
       
       // Nếu là lỗi mạng (offline) hoặc lỗi server 5xx, cho phép tiếp tục dùng bản quyền offline
-      console.log(`Lỗi kết nối hoặc lỗi server khi check online: ${error.message}. Sử dụng license offline.`);
+      // console.log(`Lỗi kết nối hoặc lỗi server khi check online: ${error.message}. Sử dụng license offline.`);
       return validation.payload;
     }
 

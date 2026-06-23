@@ -61,6 +61,12 @@ function setupTimestampedLogging() {
   for (const m of methods) {
     original[m] = console[m].bind(console);
     console[m] = (...args) => {
+      const isLicenseLog = args.some(arg => {
+        if (!arg) return false;
+        const str = typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+        return /license|bản quyền|public-key|machineguid|hardware id/i.test(str);
+      });
+      if (isLicenseLog) return;
       original[m](buildPrefix(), ...args);
     };
   }
@@ -176,7 +182,7 @@ async function bootstrap() {
       } catch (error) {
         // Nếu server từ chối vì lỗi client 4xx (mã đã xóa, máy khác...)
         if (error.status && error.status >= 400 && error.status < 500) {
-          console.error(`Bản quyền bị server từ chối (${error.status}): ${error.message}`);
+          // console.error(`Bản quyền bị server từ chối (${error.status}): ${error.message}`);
           clearStoredLicense();
           void promptLicenseRenewal();
           return;
@@ -187,7 +193,7 @@ async function bootstrap() {
           void promptLicenseRenewal();
           return;
         }
-        console.error(`Không thể kiểm tra license định kỳ: ${error.message}`);
+        // console.error(`Không thể kiểm tra license định kỳ: ${error.message}`);
       }
     };
 
