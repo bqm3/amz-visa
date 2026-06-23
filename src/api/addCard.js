@@ -745,7 +745,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
                 if (!clicked) {
                     await new Promise(r => setTimeout(r, 2000));
                     if (attempt === 3) {
-                        await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 });
+                        await page.reload({ waitUntil: 'domcontentloaded', timeout: 5000 });
                         await new Promise(r => setTimeout(r, 3000));
                     }
                 }
@@ -788,7 +788,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
             try {
                 await page.waitForSelector(
                     'iframe.apx-secure-iframe.pmts-portal-component, iframe[src*="payments"]',
-                    { timeout: 10000 }
+                    { timeout: 5000 }
                 );
                 console.log('   Đã phát hiện secure iframe');
             } catch { /* iframe may not appear on popup flow */ }
@@ -846,7 +846,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
             // ✅ FIX: Wait until card field actually appears in any frame before filling
             console.log('   Đang chờ field số thẻ xuất hiện...');
-            const fieldFound = await findFrameWithSelector(targetPage, numberSelectors, 15000);
+            const fieldFound = await findFrameWithSelector(targetPage, numberSelectors, 5000);
             if (!fieldFound) {
                 // Log available frames for debugging
                 const frameUrls = page.frames().map(f => f.url()).filter(u => u && u !== 'about:blank');
@@ -855,7 +855,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
             }
             console.log(`   Field số thẻ nằm trong frame: ${fieldFound.selector}`);
 
-            const fill = await fillCardNumberAcrossFrames(targetPage, cardInfo.number, numberSelectors, 12000);
+            const fill = await fillCardNumberAcrossFrames(targetPage, cardInfo.number, numberSelectors, 6000);
             if (!fill.ok) throw new Error('CARD_NUMBER_FIELD_NOT_FOUND');
             console.log(`Đã nhập số thẻ: ${fill.mode}`);
         } catch (err) {
@@ -1087,7 +1087,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
         // ── Step 8: Address confirmation + result wait ─────────────────
         console.log('Bước 8: chờ kết quả submit thẻ...');
 
-        const result = await waitForCardSubmitResult(page, cardInfo.number.slice(-4), 18000);
+        const result = await waitForCardSubmitResult(page, cardInfo.number.slice(-4), 5000);
         if (!result.success) {
             return {
                 success: false,
@@ -1099,12 +1099,12 @@ async function addCard(page, cardInfo, retryCount = 0) {
 
         // ── Step 9: Immediate reload & status check ──
         console.log('Chờ 2 giây trước khi reload...');
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1000));
         
         console.log('Đang reload trang để xác minh trạng thái thẻ...');
         try {
-            await safePageReload(page, 30000);
-            await new Promise(r => setTimeout(r, 3000));
+            await safePageReload(page, 5000);
+            await new Promise(r => setTimeout(r, 2000));
 
             // Wait for scroller to be visible
             await page.waitForSelector('.a-scroller.apx-wallet-desktop-payment-method-selectable-tab-css.a-scroller-vertical', { timeout: 15000 });
