@@ -30,8 +30,8 @@ clearChromeProfilesOnStartup();
 
 // Initialize Telegram Bot
 const botToken = process.env.BOT_TOKEN;
-const adminIdInput = process.env.ADMIN_IDS || "";
-const adminIds = adminIdInput.split(",").map(id => id.trim()).filter(id => id !== "");
+const groupIdInput = process.env.GROUP_IDS || "";
+const groupIds = groupIdInput.split(",").map(id => id.trim()).filter(id => id !== "");
 
 let bot = null;
 if (botToken) {
@@ -895,9 +895,9 @@ function createMainWindow(centralWidget) {
                 }
             });
 
-            // Send notification to Telegram Admins
-            if (bot && adminIds.length > 0) {
-                adminIds.forEach(chatId => {
+            // Send notification to Telegram Groups
+            if (bot && groupIds.length > 0) {
+                groupIds.forEach(chatId => {
                     bot.sendMessage(chatId, `💳 [AMZ-VISA] THẺ LIVE!\n${msg}`)
                         .catch(() => {});
                 });
