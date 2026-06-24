@@ -69,7 +69,8 @@ if (proxies.length === 0) {
 let currentAccountIndex = 0;
 let currentProxyIndex = 0;
 let maxConcurrentWindows = 1; // Will be set at runtime in updateBusiness()
-let activeBrowsers = [];
+if (!global.activeBrowsers) global.activeBrowsers = [];
+const activeBrowsers = global.activeBrowsers;
 
 function normalizeCardLine(cardLine) {
     const [number, monthRaw, yearRaw, cvc, ...nameParts] = String(cardLine || '').split('|');
@@ -276,6 +277,10 @@ async function runBusinessCardFlow(page, email) {
     await returnToWallet(page);
 
     while (true) {
+        if (global.data.settings.stopRequested) {
+            console.app(`Tiến trình bị dừng, dừng claim thẻ cho ${email}`);
+            break;
+        }
         if (!page || page.isClosed()) {
             console.app(`Trang đã đóng cho ${email}, dừng claim thẻ dùng chung`);
             break;
@@ -524,6 +529,11 @@ async function processBusinessWorker(workerId, accountsToProcess) {
             console.app(`Worker ${workerId}: Hết thẻ dùng chung khả dụng, dừng sớm.`);
             break;
         }
+        if (global.data.settings.stopRequested) {
+            console.log(`Worker ${workerId}: Nhận yêu cầu dừng, dừng tiến trình sớm.`);
+            console.app(`Worker ${workerId}: Nhận yêu cầu dừng, dừng tiến trình sớm.`);
+            break;
+        }
 
         const accountIndex = currentAccountIndex++;
         const account = accountsToProcess[accountIndex];
@@ -560,6 +570,12 @@ async function processAccount(accountLine, batchIndex) {
     if (sharedCardQueue.remainingCount() === 0) {
         console.log(`Bỏ qua account ${email} vì đã hết thẻ dùng chung.`);
         console.app(`Bỏ qua account ${email} vì đã hết thẻ dùng chung.`);
+        return;
+    }
+
+    if (global.data.settings.stopRequested) {
+        console.log(`Bỏ qua account ${email} vì tiến trình bị dừng.`);
+        console.app(`Bỏ qua account ${email} vì tiến trình bị dừng.`);
         return;
     }
 
@@ -883,13 +899,12 @@ async function cleanup() {
     });
 
     await Promise.allSettled(closePromises);
-    activeBrowsers = [];
+    activeBrowsers.length = 0;
 
     console.log("Đã dọn dẹp xong!");
     console.app("Đã dọn dẹp xong!");
 }
 
-// Handle process termination
 process.on('SIGINT', async () => {
     console.log("\nTiến trình bị ngắt. Đang dọn dẹp...");
     await cleanup();

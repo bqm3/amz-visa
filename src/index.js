@@ -12,7 +12,7 @@ const localDay = String(today.getDate()).padStart(2, '0');
 const formattedDate = `${localYear}-${localMonth}-${localDay}`; // Local date: YYYY-MM-DD
 const dirSave = path.join(__dirname, "..", "output", formattedDate);
 global.data.dirSave = dirSave;
-const chromeProfilesDir = path.join(__dirname, "..", "data", "chrome-profiles");
+const chromeProfilesDir = path.join(__dirname, "data", "chrome-profiles");
 
 function clearChromeProfilesOnStartup() {
     try {
@@ -352,12 +352,18 @@ function createMainWindow(centralWidget) {
     businessLoginButton.setText("Business Login");
     businessLoginButton.setStyleSheet("background-color: #f9e2af;");
 
+    const stopButton = new QPushButton();
+    stopButton.setText("Stop Process");
+    stopButton.setStyleSheet("background-color: #f38ba8; color: #1e1e2e; font-weight: bold;");
+    stopButton.setEnabled(false);
+
     // const fileCardButton = new QPushButton();
     // fileCardButton.setText("Open Cards File");
 
     // actionLayout.addWidget(scanButton);
     actionLayout.addWidget(businessLoginButton);
     actionLayout.addWidget(normalLoginButton);
+    actionLayout.addWidget(stopButton);
     actionLayout.addStretch(1);
     // actionLayout.addWidget(fileCardButton);
 
@@ -629,6 +635,7 @@ function createMainWindow(centralWidget) {
         cardButton.setEnabled(!disabled);
         proxyButton.setEnabled(!disabled);
         openFolderButton.setEnabled(!disabled);
+        stopButton.setEnabled(disabled);
     };
 
     cardLiveTitle.addEventListener('clicked', () => {
@@ -695,6 +702,7 @@ function createMainWindow(centralWidget) {
         
         isProcessRunning = true;
         disableButtons(true);
+        global.data.settings.stopRequested = false;
         global.data.settings.showBrowser = showBrowserCheckbox.isChecked();
         global.data.settings.addAddress = addAddressCheckbox.isChecked();
         
@@ -735,6 +743,7 @@ function createMainWindow(centralWidget) {
         
         isProcessRunning = true;
         disableButtons(true);
+        global.data.settings.stopRequested = false;
         
         // Reset vị trí cửa sổ trước khi bắt đầu.
         windowManager.reset();
@@ -763,6 +772,25 @@ function createMainWindow(centralWidget) {
             isProcessRunning = false;
             disableButtons(false);
         }
+    });
+
+    stopButton.addEventListener('clicked', async () => {
+        appendToTerminal(terminal.toPlainText() + "\n" + "Đang yêu cầu dừng tiến trình và đóng toàn bộ trình duyệt, vui lòng chờ...");
+        global.data.settings.stopRequested = true;
+        
+        if (global.activeBrowsers && global.activeBrowsers.length > 0) {
+            const closePromises = global.activeBrowsers.map(async (browser) => {
+                try {
+                    await browser.close();
+                } catch (e) {}
+            });
+            await Promise.allSettled(closePromises);
+            global.activeBrowsers = [];
+        }
+        
+        appendToTerminal(terminal.toPlainText() + "\n" + "Đã dừng toàn bộ tiến trình và đóng các trình duyệt thành công!");
+        isProcessRunning = false;
+        disableButtons(false);
     });
 
     // fileCardButton.addEventListener('clicked', () => {

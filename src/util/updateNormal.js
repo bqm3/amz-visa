@@ -214,6 +214,11 @@ async function updateNormal() {
             console.app('Hết thẻ dùng chung khả dụng, dừng tiến trình login normal sớm.');
             break;
         }
+        if (global.data.settings.stopRequested) {
+            console.log('Nhận yêu cầu dừng, dừng tiến trình login normal sớm.');
+            console.app('Nhận yêu cầu dừng, dừng tiến trình login normal sớm.');
+            break;
+        }
 
         const batch = [];
         for (let i = 0; i < maxConcurrentWindows && currentAccountIndex < availableAccounts.length; i++) {
@@ -239,6 +244,12 @@ async function processAccount(accountLine, index) {
     if (sharedCardQueue.remainingCount() === 0) {
         console.log(`Bỏ qua account ${email} vì đã hết thẻ dùng chung.`);
         console.app(`Bỏ qua account ${email} vì đã hết thẻ dùng chung.`);
+        return;
+    }
+
+    if (global.data.settings.stopRequested) {
+        console.log(`Bỏ qua account ${email} vì tiến trình bị dừng.`);
+        console.app(`Bỏ qua account ${email} vì tiến trình bị dừng.`);
         return;
     }
 
@@ -305,6 +316,9 @@ async function processAccount(accountLine, index) {
         }
 
         browser = await puppeteer.launch(launchOptions);
+        if (!global.activeBrowsers) global.activeBrowsers = [];
+        global.activeBrowsers.push(browser);
+
         const page = await browser.newPage();
 
         if (proxy && proxy.username && proxy.password) {
@@ -461,6 +475,10 @@ async function processAccount(accountLine, index) {
                     let dieCount = 0;
 
                     while (true) {
+                        if (global.data.settings.stopRequested) {
+                            console.app(`Tiến trình bị dừng, dừng claim thẻ cho ${email}`);
+                            break;
+                        }
                         if (!page || page.isClosed()) {
                             console.app(`Trang đã đóng cho ${email}, dừng claim thẻ dùng chung`);
                             break;
@@ -528,7 +546,13 @@ async function processAccount(accountLine, index) {
         console.app(`Login normal thất bại [${index + 1}] ${email}: ${error.message}`);
     } finally {
         if (browser) {
-            await browser.close();
+            try {
+                await browser.close();
+            } catch (e) {}
+            if (global.activeBrowsers) {
+                const idx = global.activeBrowsers.indexOf(browser);
+                if (idx > -1) global.activeBrowsers.splice(idx, 1);
+            }
         }
     }
 }
