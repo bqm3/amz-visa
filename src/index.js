@@ -41,7 +41,7 @@ if (botToken) {
     }
 }
 
-const { QWidget, QLabel, QLineEdit, QPushButton, QTextEdit, QCheckBox, QBoxLayout } = require("@nodegui/nodegui");
+const { QWidget, QLabel, QLineEdit, QPushButton, QTextEdit, QCheckBox, QBoxLayout, QTabWidget, QIcon } = require("@nodegui/nodegui");
 
 function createMainWindow(centralWidget) {
     ensureExists(path.join(__dirname, "..", "output"));
@@ -123,6 +123,23 @@ function createMainWindow(centralWidget) {
             font-family: 'Courier New';
             font-size: 14px;
             border-radius: 4px;
+        }
+        QTabWidget {
+            background-color: #11111b;
+            color: #cdd6f4;
+        }
+        QTabBar::tab {
+            background-color: #313244;
+            color: #cdd6f4;
+            padding: 6px 12px;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            margin-right: 2px;
+        }
+        QTabBar::tab:selected {
+            background-color: #11111b;
+            color: #a6e3a1;
+            font-weight: bold;
         }
         QTextEdit[class="card-live"] {
             background-color: #11111b;
@@ -555,23 +572,52 @@ function createMainWindow(centralWidget) {
     terminalTitle.setText("Terminal");
     terminalTitle.setProperty("class", "section-title");
 
-    const terminal = new QTextEdit();
-    terminal.setReadOnly(true);
-    terminal.setProperty("class", "terminal");
-    terminal.setMinimumHeight(150);
-    terminal.setText("Terminal sẵn sàng. Đang chờ thông tin thẻ...");
+    const tabWidget = new QTabWidget();
+    tabWidget.setMinimumHeight(150);
+
+    const generalTerminal = new QTextEdit();
+    generalTerminal.setReadOnly(true);
+    generalTerminal.setProperty("class", "terminal");
+    generalTerminal.setText("Terminal sẵn sàng. Đang chờ thông tin thẻ...");
+    tabWidget.addTab(generalTerminal, new QIcon(), "General");
+
+    const chromeTerminals = [];
+    let currentTabCount = 1;
+
+    const clearChromeTabs = () => {
+        while (currentTabCount > 1) {
+            tabWidget.removeTab(1);
+            currentTabCount--;
+        }
+        chromeTerminals.length = 0;
+    };
+
+    // Initialize with 1 Chrome tab by default
+    for (let i = 1; i <= 1; i++) {
+        const term = new QTextEdit();
+        term.setReadOnly(true);
+        term.setProperty("class", "terminal");
+        term.setMinimumHeight(150);
+        term.setText(`Chrome ${i} sẵn sàng...`);
+        
+        chromeTerminals.push(term);
+        tabWidget.addTab(term, new QIcon(), `Chrome ${i}`);
+        currentTabCount++;
+    }
+
+    const terminal = generalTerminal;
 
     // Helper functions to add text and auto-scroll
     const appendToTerminal = (text) => {
-        terminal.setText(text);
+        generalTerminal.setText(text);
         try {
             // Move cursor to the end to ensure scrolling to latest content
-            terminal.moveCursor(100); // QTextCursor.End = 100
+            generalTerminal.moveCursor(100); // QTextCursor.End = 100
         } catch (e) {
             // Fallback if moveCursor doesn't work
             try {
-                terminal.verticalScrollBar().setValue(
-                    terminal.verticalScrollBar().maximum()
+                generalTerminal.verticalScrollBar().setValue(
+                    generalTerminal.verticalScrollBar().maximum()
                 );
             } catch (err) {
                 // Ignore scrolling errors
@@ -614,7 +660,7 @@ function createMainWindow(centralWidget) {
     };
 
     terminalLayout.addWidget(terminalTitle);
-    terminalLayout.addWidget(terminal, 1);    // Add sections to right layout
+    terminalLayout.addWidget(tabWidget, 1);    // Add sections to right layout
     rightLayout.addWidget(dataFilesSection);
     rightLayout.addWidget(terminalSection, 1);
 
@@ -879,6 +925,21 @@ function createMainWindow(centralWidget) {
 
             configInfoLabel.setText(`${accounts.length} acc, ${cards.length} thẻ, ${numChrome} Chrome`);
             configInfoLabel.setStyleSheet("color: #a6e3a1; font-size: 11px;");
+
+            // Rebuild Chrome tabs dynamically based on user config
+            clearChromeTabs();
+            for (let i = 1; i <= numChrome; i++) {
+                const term = new QTextEdit();
+                term.setReadOnly(true);
+                term.setProperty("class", "terminal");
+                term.setMinimumHeight(150);
+                term.setText(`Chrome ${i} sẵn sàng...`);
+                
+                chromeTerminals.push(term);
+                tabWidget.addTab(term, new QIcon(), `Chrome ${i}`);
+                currentTabCount++;
+            }
+
             appendToTerminal(terminal.toPlainText() + `\nĐã áp dụng cấu hình: ${accounts.length} account, ${cards.length} thẻ, ${numChrome} Chrome`);
             appendToTerminal(terminal.toPlainText() + `\nCài đặt: kiểm tra sau ${checkAfterValue}s, hiện browser: ${showBrowser ? 'Có' : 'Không'}, thêm địa chỉ: ${addAddress ? 'Có' : 'Không'}`);
 
@@ -908,7 +969,25 @@ function createMainWindow(centralWidget) {
     });
 
     console.app = (...msg) => {
-        appendToTerminal(terminal.toPlainText() + "\n" + msg.join(" "));
+        const msgStr = msg.join(" ");
+        appendToTerminal(terminal.toPlainText() + "\n" + msgStr);
+
+        const chromeMatch = msgStr.match(/(?:Chrome|Worker)\s+(\d+)|^\s*\[(\d+)\]/i);
+        if (chromeMatch) {
+            const indexStr = chromeMatch[1] || chromeMatch[2];
+            const index = parseInt(indexStr) - 1;
+            if (index >= 0 && index < chromeTerminals.length) {
+                const term = chromeTerminals[index];
+                term.setText(term.toPlainText() + "\n" + msgStr);
+                try {
+                    term.moveCursor(100);
+                } catch (e) {
+                    try {
+                        term.verticalScrollBar().setValue(term.verticalScrollBar().maximum());
+                    } catch (err) {}
+                }
+            }
+        }
     }
     console.card = {
         live: (msg) => {
