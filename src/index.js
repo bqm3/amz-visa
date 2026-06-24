@@ -12,6 +12,21 @@ const localDay = String(today.getDate()).padStart(2, '0');
 const formattedDate = `${localYear}-${localMonth}-${localDay}`; // Local date: YYYY-MM-DD
 const dirSave = path.join(__dirname, "..", "output", formattedDate);
 global.data.dirSave = dirSave;
+const chromeProfilesDir = path.join(__dirname, "..", "data", "chrome-profiles");
+
+function clearChromeProfilesOnStartup() {
+    try {
+        if (fs.existsSync(chromeProfilesDir)) {
+            fs.rmSync(chromeProfilesDir, { recursive: true, force: true });
+        }
+        fs.mkdirSync(chromeProfilesDir, { recursive: true });
+        console.log(`Đã dọn sạch chrome profiles khi khởi động: ${chromeProfilesDir}`);
+    } catch (err) {
+        console.log(`Không thể dọn chrome profiles: ${err.message}`);
+    }
+}
+
+clearChromeProfilesOnStartup();
 
 // Initialize Telegram Bot
 const botToken = process.env.BOT_TOKEN;

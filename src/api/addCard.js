@@ -19,6 +19,15 @@ async function safePageReload(page, timeout = 10000) {
     }
 }
 
+function getCheckAfterDelayMs() {
+    const rawValue = global.data?.settings?.checkAfter;
+    const parsed = Number(rawValue);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.max(parsed, 1000);
+    }
+    return 10000;
+}
+
 async function isIframeValid(page, iframeSelector) {
     try {
         const el = await page.$(iframeSelector);
@@ -1098,8 +1107,9 @@ async function addCard(page, cardInfo, retryCount = 0) {
         }
 
         // ── Step 9: Immediate reload & status check ──
-        console.log('Chờ 2 giây trước khi reload...');
-        await new Promise(r => setTimeout(r, 1000));
+        const checkAfterDelayMs = getCheckAfterDelayMs();
+        console.log(`Chờ ${Math.max(Math.round(checkAfterDelayMs / 1000), 1)} giây trước khi reload...`);
+        await new Promise(r => setTimeout(r, checkAfterDelayMs));
         
         console.log('Đang reload trang để xác minh trạng thái thẻ...');
         try {
