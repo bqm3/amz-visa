@@ -209,6 +209,12 @@ async function updateNormal() {
 
     let currentAccountIndex = 0;
     while (currentAccountIndex < availableAccounts.length) {
+        if (sharedCardQueue.remainingCount() === 0) {
+            console.log('Hết thẻ dùng chung khả dụng, dừng tiến trình login normal sớm.');
+            console.app('Hết thẻ dùng chung khả dụng, dừng tiến trình login normal sớm.');
+            break;
+        }
+
         const batch = [];
         for (let i = 0; i < maxConcurrentWindows && currentAccountIndex < availableAccounts.length; i++) {
             batch.push({ accountLine: availableAccounts[currentAccountIndex], index: currentAccountIndex });
@@ -227,6 +233,12 @@ async function processAccount(accountLine, index) {
     if (!email || !pass || !secret) {
         console.log(`Dữ liệu account không hợp lệ: ${accountLine}`);
         console.app(`Dữ liệu account không hợp lệ: ${accountLine}`);
+        return;
+    }
+
+    if (sharedCardQueue.remainingCount() === 0) {
+        console.log(`Bỏ qua account ${email} vì đã hết thẻ dùng chung.`);
+        console.app(`Bỏ qua account ${email} vì đã hết thẻ dùng chung.`);
         return;
     }
 

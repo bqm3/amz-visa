@@ -519,6 +519,12 @@ async function updateBusiness() {
  */
 async function processBusinessWorker(workerId, accountsToProcess) {
     while (currentAccountIndex < accountsToProcess.length) {
+        if (sharedCardQueue.remainingCount() === 0) {
+            console.log(`Worker ${workerId}: Hết thẻ dùng chung khả dụng, dừng sớm.`);
+            console.app(`Worker ${workerId}: Hết thẻ dùng chung khả dụng, dừng sớm.`);
+            break;
+        }
+
         const accountIndex = currentAccountIndex++;
         const account = accountsToProcess[accountIndex];
         const email = account.split('|')[0];
@@ -548,6 +554,12 @@ async function processAccount(accountLine, batchIndex) {
     if (!email || !pass || !secret) {
         console.log(`Dữ liệu account không hợp lệ: ${accountLine}`);
         console.app(`Dữ liệu account không hợp lệ: ${accountLine}`);
+        return;
+    }
+
+    if (sharedCardQueue.remainingCount() === 0) {
+        console.log(`Bỏ qua account ${email} vì đã hết thẻ dùng chung.`);
+        console.app(`Bỏ qua account ${email} vì đã hết thẻ dùng chung.`);
         return;
     }
 
