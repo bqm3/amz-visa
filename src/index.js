@@ -586,7 +586,7 @@ function createMainWindow(centralWidget) {
 
     const clearChromeTabs = () => {
         while (currentTabCount > 1) {
-            tabWidget.removeTab(1);
+            tabWidget.native.removeTab(1);
             currentTabCount--;
         }
         chromeTerminals.length = 0;
