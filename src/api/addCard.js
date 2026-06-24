@@ -686,7 +686,7 @@ async function clickFilledPaymentFormSubmit(page, cardInfo) {
 // ─────────────────────────────────────────────
 // MAIN: addCard
 // ─────────────────────────────────────────────
-async function addCard(page, cardInfo, retryCount = 0) {
+async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
     const MAX_RETRIES = 3;
     if (retryCount >= MAX_RETRIES) {
         console.log(`Đã đạt giới hạn thử lại (${MAX_RETRIES})`);
@@ -1107,6 +1107,10 @@ async function addCard(page, cardInfo, retryCount = 0) {
         }
 
         // ── Step 9: Immediate reload & status check ──
+        if (!shouldVerify) {
+            return { success: true };
+        }
+
         const checkAfterDelayMs = getCheckAfterDelayMs();
         console.log(`Chờ ${Math.max(Math.round(checkAfterDelayMs / 1000), 1)} giây trước khi reload...`);
         await new Promise(r => setTimeout(r, checkAfterDelayMs));
@@ -1114,7 +1118,7 @@ async function addCard(page, cardInfo, retryCount = 0) {
         console.log('Đang reload trang để xác minh trạng thái thẻ...');
         try {
             await safePageReload(page, 5000);
-            await new Promise(r => setTimeout(r, 2000));
+            // await new Promise(r => setTimeout(r, 2000));
 
             // Wait for scroller to be visible
             await page.waitForSelector('.a-scroller.apx-wallet-desktop-payment-method-selectable-tab-css.a-scroller-vertical', { timeout: 15000 });
@@ -1195,4 +1199,67 @@ async function addCard(page, cardInfo, retryCount = 0) {
 //     return { success: true };
 // }
 
+async function verifyCardsBatch(page, cardsBatch) {
+    const checkAfterDelayMs = getCheckAfterDelayMs();
+    console.log(`Chờ ${Math.max(Math.round(checkAfterDelayMs / 1000), 1)} giây trước khi reload để check batch...`);
+    await new Promise(r => setTimeout(r, checkAfterDelayMs));
+
+    console.log(`Đang reload trang để xác minh trạng thái của ${cardsBatch.length} thẻ...`);
+    const results = {};
+    try {
+        await safePageReload(page, 15000);
+        await page.waitForSelector('.a-scroller.apx-wallet-desktop-payment-method-selectable-tab-css.a-scroller-vertical', { timeout: 15000 });
+
+        const last4List = cardsBatch.map(c => c.number.slice(-4));
+        const walletImages = await page.evaluate((last4s) => {
+            const scroller = document.querySelector('.a-scroller.apx-wallet-desktop-payment-method-selectable-tab-css.a-scroller-vertical');
+            if (!scroller) return {};
+            const tabs = scroller.querySelectorAll('.apx-wallet-selectable-payment-method-tab');
+            const map = {};
+            for (const tab of tabs) {
+                const text = tab.textContent || '';
+                for (const last4 of last4s) {
+                    if (text.includes(last4)) {
+                        const img = tab.querySelector('img.apx-wallet-selectable-image') || tab.querySelector('img');
+                        if (img) {
+                            map[last4] = img.src;
+                        }
+                    }
+                }
+            }
+            return map;
+        }, last4List);
+
+        const dieUrls = [
+            'https://m.media-amazon.com/images/I/41MGiaNMk5L._SL85_.png',
+            'https://m.media-amazon.com/images/I/81NBfFByidL._SL85_.png'
+        ];
+
+        for (const card of cardsBatch) {
+            const last4 = card.number.slice(-4);
+            const imgUrl = walletImages[last4];
+            if (imgUrl) {
+                console.log(`Phát hiện URL ảnh của thẻ ***${last4}: ${imgUrl}`);
+                if (dieUrls.includes(imgUrl)) {
+                    console.log(`Thẻ ***${last4} là DIE (khớp ảnh bị hạn chế: ${imgUrl})`);
+                    results[card.number] = { success: false, error: 'CARD_DIE', img: imgUrl };
+                } else {
+                    console.log(`Thẻ ***${last4} là LIVE (ảnh: ${imgUrl})`);
+                    results[card.number] = { success: true, img: imgUrl };
+                }
+            } else {
+                console.log(`Không tìm thấy thẻ ***${last4} trong ví sau khi reload batch`);
+                results[card.number] = { success: false, error: 'CARD_NOT_FOUND_IN_WALLET' };
+            }
+        }
+    } catch (err) {
+        console.log(`Lỗi khi kiểm tra trạng thái batch thẻ: ${err.message}`);
+        for (const card of cardsBatch) {
+            results[card.number] = { success: false, error: `VERIFY_ERROR: ${err.message}` };
+        }
+    }
+    return results;
+}
+
+addCard.verifyCardsBatch = verifyCardsBatch;
 module.exports = addCard;

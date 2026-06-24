@@ -473,6 +473,35 @@ async function processAccount(accountLine, index) {
 
                     let liveCount = 0;
                     let dieCount = 0;
+                    const pendingBatch = [];
+
+                    const verifyBatch = async () => {
+                        if (pendingBatch.length === 0) return;
+
+                        console.log(`Bắt đầu check batch cho ${pendingBatch.length} thẻ...`);
+                        console.app(`Bắt đầu check batch cho ${pendingBatch.length} thẻ...`);
+
+                        const batchResults = await addCard.verifyCardsBatch(page, pendingBatch.map(item => item.form));
+
+                        for (const item of pendingBatch) {
+                            const cardResult = batchResults[item.form.number];
+                            if (cardResult && cardResult.success) {
+                                liveCount++;
+                                appendCardResult('live', item.card, email);
+                                console.log(`Thẻ LIVE ***${item.card.number.slice(-4)} cho ${email}`);
+                                console.app(`Thẻ LIVE ***${item.card.number.slice(-4)} cho ${email}`);
+                            } else {
+                                const errStr = cardResult ? cardResult.error : 'VERIFY_FAILED';
+                                const reason = `verify_card_batch: ${errStr}`;
+                                dieCount++;
+                                appendCardResult('die', item.card, email, reason);
+                                console.log(`Thẻ DIE ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
+                                console.app(`Thẻ DIE ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
+                            }
+                        }
+
+                        pendingBatch.length = 0;
+                    };
 
                     while (true) {
                         if (global.data.settings.stopRequested) {
@@ -502,13 +531,10 @@ async function processAccount(accountLine, index) {
                         console.log(`Đang xử lý thẻ dùng chung ***${card.number.slice(-4)} cho ${email}`);
                         console.app(`Đang xử lý thẻ dùng chung ***${card.number.slice(-4)} cho ${email}`);
 
-                        const res = await addCard(page, form);
+                        const res = await addCard(page, form, 0, false);
 
                         if (res.success) {
-                            liveCount++;
-                            appendCardResult('live', card, email);
-                            console.log(`Thẻ LIVE ***${card.number.slice(-4)} cho ${email}`);
-                            console.app(`Thẻ LIVE ***${card.number.slice(-4)} cho ${email}`);
+                            pendingBatch.push({ card, form });
                         } else {
                             const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
                             dieCount++;
@@ -523,7 +549,16 @@ async function processAccount(accountLine, index) {
                             }
                         }
 
+                        const remainingCount = sharedCardQueue.remainingCount();
+                        if (pendingBatch.length >= 10 || (remainingCount === 0 && pendingBatch.length > 0)) {
+                            await verifyBatch();
+                        }
+
                         await returnToWallet(page);
+                    }
+
+                    if (pendingBatch.length > 0) {
+                        await verifyBatch();
                     }
 
                     console.log(`Đã hoàn tất flow thẻ cho ${email}: ${liveCount} live, ${dieCount} die`);
