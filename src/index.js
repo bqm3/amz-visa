@@ -543,9 +543,14 @@ function createMainWindow(centralWidget) {
     proxyButton.setText("Proxies");
     proxyButton.setToolTip("Định dạng proxies.txt:\nIP:Port:User:Pass hoặc IP:Port\nVí dụ: 1.2.3.4:8080:user:pass");
 
+    const checkCardButton = new QPushButton();
+    checkCardButton.setText("Check Card");
+    checkCardButton.setToolTip("Mở file checkcard.txt chứa danh sách thẻ đã xử lý");
+
     fileButtonsLayout.addWidget(accButton);
     fileButtonsLayout.addWidget(cardButton);
     fileButtonsLayout.addWidget(proxyButton);
+    fileButtonsLayout.addWidget(checkCardButton);
     fileButtonsLayout.addStretch(1);
     dataFilesLayout.addWidget(fileButtonsContainer);
 
@@ -680,6 +685,7 @@ function createMainWindow(centralWidget) {
         accButton.setEnabled(!disabled);
         cardButton.setEnabled(!disabled);
         proxyButton.setEnabled(!disabled);
+        checkCardButton.setEnabled(!disabled);
         openFolderButton.setEnabled(!disabled);
         stopButton.setEnabled(disabled);
     };
@@ -956,6 +962,22 @@ function createMainWindow(centralWidget) {
         exec(`notepad "${childFilePath}"`, (err) => {
             if (err) {
                 appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở proxies.txt: " + err.message);
+            }
+        });
+    });
+
+    checkCardButton.addEventListener('clicked', () => {
+        const checkCardFilePath = path.join(__dirname, "data", 'checkcard.txt');
+        if (!fs.existsSync(checkCardFilePath)) {
+            try {
+                fs.writeFileSync(checkCardFilePath, '', 'utf8');
+            } catch (e) {
+                console.error("Không thể tạo checkcard.txt:", e);
+            }
+        }
+        exec(`notepad "${checkCardFilePath}"`, (err) => {
+            if (err) {
+                appendToTerminal(terminal.toPlainText() + "\nLỗi khi mở checkcard.txt: " + err.message);
             }
         });
     });
