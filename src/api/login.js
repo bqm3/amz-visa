@@ -7,21 +7,21 @@ async function handleConnectionTimeout(page, retryCount = 0) {
     if (retryCount >= 3) {
         throw new Error("MAX_RETRIES_EXCEEDED");
     }
-    
+
     console.log(`Phát hiện timeout kết nối, chờ 30s rồi thử lại (lần ${retryCount + 1}/3)...`);
     console.app(`Phát hiện timeout kết nối, chờ 30s rồi thử lại (lần ${retryCount + 1}/3)...`);
-    
+
     // Wait 30 seconds
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     try {
         // Reload page
         console.log(`Đang refresh trang sau timeout...`);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 7000 });
-        
+
         // Wait for page to stabilize
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         console.log(`✅ Page refreshed successfully`);
         return true;
     } catch (error) {
@@ -43,12 +43,12 @@ async function waitForPageLoad(page, timeout = 5000) {
 
         // Short stabilization delay
         await new Promise(resolve => setTimeout(resolve, 300));
-        
+
         console.log('✅ Page loaded successfully');
-        
+
     } catch (error) {
         console.log(`Lỗi khi tải trang: ${error.message}, vẫn tiếp tục...`);
-        
+
         // Minimal fallback
         await new Promise(resolve => setTimeout(resolve, 300));
     }
@@ -89,7 +89,7 @@ async function ensureEmailInputVisible(page) {
         try {
             await page.waitForSelector(sel, { timeout: 5000 });
             return sel;
-        } catch (_) {}
+        } catch (_) { }
     }
     return null;
 }
@@ -110,56 +110,56 @@ async function resolveAccountSwitcherFast(page) {
         for (let i = 0; i < 6; i++) {
             const handled = await Promise.race([
                 page.evaluate(() => {
-                const url = window.location.href || '';
-                const isPickerPage = url.includes('switch_account=picker') || url.includes('switcher_type=');
+                    const url = window.location.href || '';
+                    const isPickerPage = url.includes('switch_account=picker') || url.includes('switcher_type=');
 
-                const clickish = (el) => {
-                    if (!el) return false;
-                    try { el.scrollIntoView({ block: 'center' }); } catch (_) {}
-                    try { el.click(); return true; } catch (_) {}
-                    try {
-                        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                        return true;
-                    } catch (_) {}
-                    return false;
-                };
+                    const clickish = (el) => {
+                        if (!el) return false;
+                        try { el.scrollIntoView({ block: 'center' }); } catch (_) { }
+                        try { el.click(); return true; } catch (_) { }
+                        try {
+                            el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                            return true;
+                        } catch (_) { }
+                        return false;
+                    };
 
-                // Newer picker page: "Which account do you want to use?"
-                if (isPickerPage) {
-                    const pickerAction = document.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]')
-                        || document.querySelector('form.cvf-widget-form-account-switcher button[type="submit"]')
-                        || document.querySelector('form.cvf-widget-form-account-switcher input[type="submit"]')
-                        || document.querySelector('[data-test-id="customerName"]');
-                    if (clickish(pickerAction)) return true;
-                }
-
-                const forms = Array.from(document.querySelectorAll('.cvf-widget-form-account-switcher'));
-                if (!forms.length) return false;
-
-                const targetForm = forms.find(f => {
-                    const t = (f.querySelector('[data-test-id="accountType"]')?.textContent || '').toLowerCase();
-                    return t.includes('personal account');
-                }) || forms[0];
-
-                if (!targetForm) return false;
-
-                const customer = targetForm.querySelector('[data-test-id="customerName"]');
-                const anchor = targetForm.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]');
-
-                // customerName can be a non-actionable text node; prefer actionable controls.
-                if (clickish(anchor)) return true;
-                if (clickish(customer)) {
-                    const actionable = targetForm.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]')
-                        || targetForm.querySelector('button[type="submit"], input[type="submit"], button, [role="button"]');
-                    if (clickish(actionable)) return true;
-                }
-                try {
-                    if (typeof targetForm.submit === 'function') {
-                        targetForm.submit();
-                        return true;
+                    // Newer picker page: "Which account do you want to use?"
+                    if (isPickerPage) {
+                        const pickerAction = document.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]')
+                            || document.querySelector('form.cvf-widget-form-account-switcher button[type="submit"]')
+                            || document.querySelector('form.cvf-widget-form-account-switcher input[type="submit"]')
+                            || document.querySelector('[data-test-id="customerName"]');
+                        if (clickish(pickerAction)) return true;
                     }
-                } catch (_) {}
-                return false;
+
+                    const forms = Array.from(document.querySelectorAll('.cvf-widget-form-account-switcher'));
+                    if (!forms.length) return false;
+
+                    const targetForm = forms.find(f => {
+                        const t = (f.querySelector('[data-test-id="accountType"]')?.textContent || '').toLowerCase();
+                        return t.includes('personal account');
+                    }) || forms[0];
+
+                    if (!targetForm) return false;
+
+                    const customer = targetForm.querySelector('[data-test-id="customerName"]');
+                    const anchor = targetForm.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]');
+
+                    // customerName can be a non-actionable text node; prefer actionable controls.
+                    if (clickish(anchor)) return true;
+                    if (clickish(customer)) {
+                        const actionable = targetForm.querySelector('a.cvf-widget-btn-verify-account-switcher[role="button"]')
+                            || targetForm.querySelector('button[type="submit"], input[type="submit"], button, [role="button"]');
+                        if (clickish(actionable)) return true;
+                    }
+                    try {
+                        if (typeof targetForm.submit === 'function') {
+                            targetForm.submit();
+                            return true;
+                        }
+                    } catch (_) { }
+                    return false;
                 }),
                 new Promise(resolve => setTimeout(() => resolve(false), 2500))
             ]);
@@ -170,13 +170,13 @@ async function resolveAccountSwitcherFast(page) {
                         page.waitForNavigation({ timeout: 5000 }),
                         new Promise(resolve => setTimeout(resolve, 1200))
                     ]);
-                } catch (_) {}
+                } catch (_) { }
                 return true;
             }
 
             await new Promise(resolve => setTimeout(resolve, 400));
         }
-    } catch (_) {}
+    } catch (_) { }
     return false;
 }
 
@@ -185,17 +185,17 @@ async function detectAccountStatus(page) {
     try {
         const url = page.url();
         const content = await page.content();
-        
+
         // Check for various account lock scenarios
-        if (url.includes('/ap/signin') && (content.includes('locked') || 
-            content.includes('suspended') || 
+        if (url.includes('/ap/signin') && (content.includes('locked') ||
+            content.includes('suspended') ||
             content.includes('Your account has been temporarily locked') ||
             content.includes('We noticed some unusual activity') ||
             content.includes('To continue, please verify your identity'))) {
             return 'ACCOUNT_LOCKED';
         }
-        
-        if (url.includes('account-status.amazon.com') ||
+
+        if (url.includes('account-status.amazon.co.jp') ||
             content.includes('Account on hold') ||
             content.includes('Your account is currently under review') ||
             content.includes('Billing verification required') ||
@@ -203,13 +203,13 @@ async function detectAccountStatus(page) {
             content.includes('verify your billing information')) {
             return 'ACCOUNT_LOCKED';
         }
-        
+
         // Check for captcha that might indicate suspicious activity
         if (content.includes('Enter the characters you see below') ||
             content.includes('Type the characters you see in this image')) {
             return 'SUSPICIOUS_ACTIVITY';
         }
-        
+
         return 'NORMAL';
     } catch (error) {
         console.log(`Lỗi khi kiểm tra trạng thái account: ${error.message}`);
@@ -222,17 +222,17 @@ function removeLockedAccount(email) {
     try {
         console.log(`Bắt đầu xử lý xóa account bị khóa: ${email}`);
         console.app(`Bắt đầu xử lý xóa account bị khóa: ${email}`);
-        
+
         // Remove from acc.txt with absolute path
         const accPath = path.join(__dirname, '..', 'data', 'acc.txt');
         console.log(`📁 Checking acc.txt path: ${accPath}`);
-        
+
         if (fs.existsSync(accPath)) {
             console.log(`✅ acc.txt file exists, reading content...`);
             const accContent = fs.readFileSync(accPath, 'utf8');
             const originalLines = accContent.split('\n');
             console.log(`📊 Original file has ${originalLines.length} lines`);
-            
+
             const filteredLines = originalLines.filter(line => {
                 const trimmedLine = line.trim();
                 if (trimmedLine.length === 0 || trimmedLine.startsWith('//') || trimmedLine.startsWith('#')) {
@@ -246,9 +246,9 @@ function removeLockedAccount(email) {
                 }
                 return shouldKeep;
             });
-            
+
             console.log(`📊 Filtered file has ${filteredLines.length} lines`);
-            
+
             if (filteredLines.length !== originalLines.length) {
                 fs.writeFileSync(accPath, filteredLines.join('\n'), 'utf8');
                 console.log(`Đã xóa ${email} khỏi acc.txt`);
@@ -265,19 +265,19 @@ function removeLockedAccount(email) {
         // Remove from data.json with absolute path
         const dataPath = path.join(__dirname, '..', 'data', 'data.json');
         console.log(`Đang kiểm tra đường dẫn data.json: ${dataPath}`);
-        
+
         if (fs.existsSync(dataPath)) {
             console.log(`data.json tồn tại, đang đọc nội dung...`);
             let data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
             let dataChanged = false;
-            
+
             // Remove from childCount
             if (data.childCount && data.childCount[email]) {
                 delete data.childCount[email];
                 dataChanged = true;
                 console.log(`Đã xóa ${email} khỏi childCount trong data.json`);
             }
-            
+
             // Remove from businessAccounts if exists
             if (data.businessAccounts && Array.isArray(data.businessAccounts)) {
                 const originalCount = data.businessAccounts.length;
@@ -287,12 +287,12 @@ function removeLockedAccount(email) {
                     console.log(`Đã xóa ${email} khỏi businessAccounts trong data.json`);
                 }
             }
-            
+
             // Add to locked accounts history
             if (!data.lockedAccountsHistory) {
                 data.lockedAccountsHistory = [];
             }
-            
+
             // Check if already in history to avoid duplicates
             const alreadyInHistory = data.lockedAccountsHistory.some(acc => acc.email === email);
             if (!alreadyInHistory) {
@@ -305,7 +305,7 @@ function removeLockedAccount(email) {
                 dataChanged = true;
                 console.log(`Đã thêm ${email} vào lịch sử account bị khóa`);
             }
-            
+
             if (dataChanged) {
                 fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
                 console.log(`Đã cập nhật data.json - xóa ${email}`);
@@ -315,14 +315,14 @@ function removeLockedAccount(email) {
             console.log(`Không tìm thấy data.json tại: ${dataPath}`);
             console.app(`Không tìm thấy data.json tại: ${dataPath}`);
         }
-        
+
         // Create locked accounts report file
         const lockedReportPath = path.join(__dirname, '..', 'data', 'locked_accounts.txt');
         const timestamp = new Date().toISOString();
         const reportLine = `${timestamp}: ${email} - ACCOUNT_LOCKED - REMOVED_FROM_FILES\n`;
         fs.appendFileSync(lockedReportPath, reportLine, 'utf8');
         console.log(`Đã thêm vào báo cáo account bị khóa: ${lockedReportPath}`);
-        
+
         return true;
     } catch (error) {
         console.error(`Lỗi khi xóa account bị khóa ${email}:`, error.message);
@@ -363,21 +363,21 @@ async function login(page, { email, pass, code, proxy }) {
             console.log(`Đang mở trang login (còn ${retries} lần thử)...`);
             console.app(`Đang mở trang login (còn ${retries} lần thử)...`);
             await page.goto(
-                'https://www.amazon.com/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https://www.amazon.com/?ref_=nav_signin&openid.identity=http://specs.openid.net/auth/2.0/identifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select&openid.ns=http://specs.openid.net/auth/2.0',
+                'https://www.amazon.co.jp/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.co.jp%2F%3Fref_%3Dnav_signin&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=jpflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0',
                 { waitUntil: 'domcontentloaded', timeout: 10000 }
             );
-            
+
             // Wait for page to load completely
             await waitForPageLoad(page);
-            
+
             success = true;
         } catch (err) {
             retries--;
-            
+
             // Handle timeout errors
             if (err.message.includes('timeout') || err.message.includes('net::ERR_') || err.message.includes('Navigation timeout')) {
                 console.log(`Phát hiện timeout điều hướng: ${err.message}`);
-                
+
                 try {
                     const handled = await handleConnectionTimeout(page, 3 - retries);
                     if (handled && retries > 0) {
@@ -388,7 +388,7 @@ async function login(page, { email, pass, code, proxy }) {
                     console.log(`Xử lý timeout thất bại: ${timeoutError.message}`);
                 }
             }
-            
+
             if (retries === 0) {
                 console.log("Không tải được trang login Amazon sau nhiều lần thử.");
                 console.app("Không tải được trang login Amazon sau nhiều lần thử.");
@@ -415,7 +415,7 @@ async function login(page, { email, pass, code, proxy }) {
             await waitForPageLoad(page);
         }
     }
-    
+
     try {
         const targetPage = page;
         const promises = [];
@@ -432,16 +432,16 @@ async function login(page, { email, pass, code, proxy }) {
             .setTimeout(1000)
             .on('action', () => startWaitingForEvents())
             .click({
-              offset: {
-                x: 237.39999389648438,
-                y: 15.149993896484375,
-              },
+                offset: {
+                    x: 237.39999389648438,
+                    y: 15.149993896484375,
+                },
             });
         await Promise.all(promises);
-        
+
         await waitForPageLoad(page);
-        
-    } catch (_) {}
+
+    } catch (_) { }
 
     // Fill email field
     {
@@ -455,7 +455,7 @@ async function login(page, { email, pass, code, proxy }) {
                 console.app(`⚠️ Email input missing, reloading signin page...`);
 
                 await targetPage.goto(
-                    'https://www.amazon.com/ap/signin',
+                    'https://www.amazon.co.jp/ap/signin',
                     { waitUntil: 'domcontentloaded', timeout: 45000 }
                 );
                 await waitForPageLoad(targetPage, 10000);
@@ -484,7 +484,7 @@ async function login(page, { email, pass, code, proxy }) {
                 await targetPage.keyboard.press('Backspace');
                 await targetPage.keyboard.type(email, { delay: 20 });
                 filled = true;
-            } catch (_) {}
+            } catch (_) { }
 
             if (!filled) {
                 await targetPage.evaluate(({ selector, value }) => {
@@ -503,7 +503,7 @@ async function login(page, { email, pass, code, proxy }) {
             throw new Error("FAILED_FILL_EMAIL");
         }
     }
-    
+
     // Click continue button
     {
         const targetPage = page;
@@ -524,7 +524,7 @@ async function login(page, { email, pass, code, proxy }) {
             throw new Error("FAILED_CLICK_CONTINUE");
         }
     }
-    
+
     // Fill password field
     {
         const targetPage = page;
@@ -536,7 +536,7 @@ async function login(page, { email, pass, code, proxy }) {
                     await targetPage.waitForSelector(selector, { timeout: 4000 });
                     passwordSelector = selector;
                     break;
-                } catch (_) {}
+                } catch (_) { }
             }
             if (!passwordSelector) {
                 throw new Error('PASSWORD_FIELD_NOT_FOUND');
@@ -555,19 +555,19 @@ async function login(page, { email, pass, code, proxy }) {
             throw new Error("FAILED_FILL_PASSWORD");
         }
     }
-    
+
     // ✅ IMPROVED SIGN IN HANDLING - Prevent execution context destruction
     {
         const targetPage = page;
         try {
             console.log('🖱️ Clicking sign in button...');
-            
+
             // Get URL before clicking
             let beforeClickUrl = await targetPage.url();
-            
+
             // ✅ USE SAFER CLICK METHOD WITHOUT IMMEDIATE NAVIGATION WAIT
             await targetPage.locator('#signInSubmit').click();
-            
+
             // ✅ WAIT FOR POTENTIAL NAVIGATION OR PAGE CHANGES
             let navigationOccurred = false;
             try {
@@ -598,10 +598,10 @@ async function login(page, { email, pass, code, proxy }) {
             } catch (navError) {
                 console.log(`Chờ điều hướng kết thúc với thông báo: ${navError.message}`);
             }
-            
+
             // Wait for page to stabilize
             await waitForPageLoad(page);
-            
+
             let afterClickUrl;
             try {
                 afterClickUrl = await targetPage.url();
@@ -610,17 +610,17 @@ async function login(page, { email, pass, code, proxy }) {
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 afterClickUrl = await targetPage.url();
             }
-            
+
             console.log(`🔍 URL before: ${beforeClickUrl}`);
             console.log(`🔍 URL after: ${afterClickUrl}`);
-            
+
             // Check account status after sign in
             const accountStatus = await detectAccountStatus(targetPage);
-            
+
             if (accountStatus === 'ACCOUNT_LOCKED') {
                 console.log(`Account ${email} bị khóa hoặc bị tạm ngưng`);
                 console.app(`Account ${email} bị khóa hoặc bị tạm ngưng`);
-                
+
                 // Remove account from files immediately
                 const removeResult = removeLockedAccount(email);
                 if (removeResult) {
@@ -628,27 +628,27 @@ async function login(page, { email, pass, code, proxy }) {
                 } else {
                     console.log(`Không thể xóa account bị khóa ${email} khỏi file`);
                 }
-                
+
                 throw new Error("ACCOUNT_LOCKED");
             }
-            
+
             // Check if login failed (URL didn't change significantly)
-            const urlChanged = afterClickUrl !== beforeClickUrl && 
-                               !afterClickUrl.includes('/ap/signin') && 
-                               !afterClickUrl.includes('/ap/mfa');
-            
+            const urlChanged = afterClickUrl !== beforeClickUrl &&
+                !afterClickUrl.includes('/ap/signin') &&
+                !afterClickUrl.includes('/ap/mfa');
+
             if (!urlChanged && !navigationOccurred) {
                 // Double check for account lock
                 const currentStatus = await detectAccountStatus(targetPage);
                 if (currentStatus === 'ACCOUNT_LOCKED') {
                     console.log(`Account ${email} bị khóa (phát hiện sau bước kiểm tra password)`);
                     console.app(`Account ${email} bị khóa (phát hiện sau bước kiểm tra password)`);
-                    
+
                     const removeResult = removeLockedAccount(email);
                     if (removeResult) {
                         console.log(`Đã xử lý xóa account bị khóa cho ${email}`);
                     }
-                    
+
                     throw new Error("ACCOUNT_LOCKED");
                 } else {
                     // Check for error messages on page
@@ -661,7 +661,7 @@ async function login(page, { email, pass, code, proxy }) {
                         ];
                         return errorSelectors.some(selector => document.querySelector(selector));
                     });
-                    
+
                     if (hasErrors) {
                         console.log(`Sai password cho ${email}`);
                         console.app(`Sai password cho ${email}`);
@@ -669,22 +669,22 @@ async function login(page, { email, pass, code, proxy }) {
                     }
                 }
             }
-            
+
             console.log('Đã bấm Sign in thành công');
-            
+
         } catch (error) {
             console.log("Lỗi sau khi bấm Sign in:", error.message);
             console.app("Lỗi sau khi bấm Sign in: " + error.message);
-            
+
             // Handle specific account lock scenarios
             if (error.message === "ACCOUNT_LOCKED") {
                 throw new Error("ACCOUNT_LOCKED");
             }
-            
+
             if (error.message === "INCORRECT_PASS") {
                 throw new Error("INCORRECT_PASS");
             }
-            
+
             throw new Error("FAILED_SIGN_IN");
         }
     }
@@ -732,21 +732,21 @@ async function login(page, { email, pass, code, proxy }) {
 
                 console.log("Đã xử lý MFA thành công");
                 break; // Success
-                
+
             } catch (mfaError) {
                 mfaRetries--;
                 console.log(`Lỗi khi xử lý MFA (còn ${mfaRetries} lần thử):`, mfaError.message);
-                
+
                 // Handle timeout in MFA
                 if (mfaError.message.includes('timeout') && mfaRetries > 0) {
                     await handleConnectionTimeout(page, 3 - mfaRetries);
                     continue;
                 }
-                
+
                 if (mfaRetries === 0) {
                     throw new Error("FAILED_MFA");
                 }
-                
+
                 // Wait before retry (MFA token might need to be regenerated)
                 await new Promise(resolve => setTimeout(resolve, 3000));
             }
@@ -776,13 +776,13 @@ async function login(page, { email, pass, code, proxy }) {
             .setTimeout(timeout)
             .on('action', () => startWaitingForEvents())
             .click({
-              offset: {
-                x: 23.662506103515625,
-                y: 9.20001220703125,
-              },
+                offset: {
+                    x: 23.662506103515625,
+                    y: 9.20001220703125,
+                },
             });
         await Promise.all(promises);
-        
+
         await waitForPageLoad(page);
     }
 
@@ -808,12 +808,12 @@ async function login(page, { email, pass, code, proxy }) {
 
                 const smartClick = (el) => {
                     if (!el) return false;
-                    try { el.scrollIntoView({ block: 'center' }); } catch (_) {}
-                    try { el.click(); return true; } catch (_) {}
+                    try { el.scrollIntoView({ block: 'center' }); } catch (_) { }
+                    try { el.click(); return true; } catch (_) { }
                     try {
                         el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
                         return true;
-                    } catch (_) {}
+                    } catch (_) { }
                     return false;
                 };
 
@@ -854,7 +854,7 @@ async function login(page, { email, pass, code, proxy }) {
                         targetForm.submit();
                         return true;
                     }
-                } catch (_) {}
+                } catch (_) { }
                 return false;
             });
             if (clickedSwitcher) break;
@@ -867,7 +867,7 @@ async function login(page, { email, pass, code, proxy }) {
                     targetPage.waitForNavigation({ timeout: 5000 }),
                     new Promise(resolve => setTimeout(resolve, 1200))
                 ]);
-            } catch (_) {}
+            } catch (_) { }
             await waitForPageLoad(page);
             console.log("Đã bấm lựa chọn account cá nhân");
         } else {
@@ -887,13 +887,13 @@ async function login(page, { email, pass, code, proxy }) {
         page.url().includes('switcher_type=')
     ) {
         try {
-            await page.goto('https://www.amazon.com/?ref_=nav_signin', {
+            await page.goto('https://www.amazon.co.jp/?ref_=nav_signin', {
                 waitUntil: 'domcontentloaded',
                 timeout: 7000
             });
-        } catch (_) {}
+        } catch (_) { }
     }
-    
+
     // Final checks and account lock detection
     {
         const targetPage = page;
@@ -910,20 +910,20 @@ async function login(page, { email, pass, code, proxy }) {
 
         // Final account lock check
         const finalStatus = await detectAccountStatus(page);
-        
+
         if (finalStatus === 'ACCOUNT_LOCKED') {
             console.log(`Account ${email} bị khóa (kiểm tra cuối)`);
-            
+
             const removeResult = removeLockedAccount(email);
             if (removeResult) {
                 console.log(`Đã xử lý xóa account bị khóa cho ${email}`);
             }
-            
+
             throw new Error("ACCOUNT_LOCKED");
         }
 
         // Handle continue shopping button if still on signin page
-        if(page.url().includes('/ap/signin')) {
+        if (page.url().includes('/ap/signin')) {
             try {
                 await puppeteer.Locator.race([
                     targetPage.locator('button[type="submit"].a-button-text[alt="Continue shopping"]'),
@@ -932,21 +932,21 @@ async function login(page, { email, pass, code, proxy }) {
                 ])
                     .setTimeout(5000)
                     .click();
-                    
+
                 await waitForPageLoad(page);
-                
+
             } catch (error) {
                 console.log(`Account ${email} bị khóa (kiểm tra nút Continue)`);
-                
+
                 const removeResult = removeLockedAccount(email);
                 if (removeResult) {
                     console.log(`Đã xử lý xóa account bị khóa cho ${email}`);
                 }
-                
+
                 throw new Error("ACCOUNT_LOCKED");
             }
         }
-        
+
         // keep final wait minimal to avoid post-MFA lag
     }
 
@@ -955,11 +955,11 @@ async function login(page, { email, pass, code, proxy }) {
         let interval = setInterval(() => {
             const u = page.url();
             if (
-                u.includes('amazon.com/?') ||
-                u.includes('amazon.com/') ||
+                u.includes('amazon.co.jp/?') ||
+                u.includes('amazon.co.jp/') ||
                 u.includes('/a/addresses') ||
                 u.includes('/cpe/yourpayments') ||
-                u.includes('account-status.amazon.com') ||
+                u.includes('account-status.amazon.co.jp') ||
                 u.length <= 25
             ) {
                 clearInterval(interval);
@@ -967,16 +967,16 @@ async function login(page, { email, pass, code, proxy }) {
                 return;
             }
         }, 1000);
-        
+
         // Timeout quickly to avoid long hangs on intermediate pages
         setTimeout(() => {
             clearInterval(interval);
             resolve();
         }, 8000);
     });
-    
+
     // final page load wait removed to reduce latency
-    
+
     console.log(`Login thành công cho ${email}`);
 }
 
@@ -1002,7 +1002,7 @@ async function handleCapcha(page, timeout) {
         }
 
         console.log(`Phát hiện CAPTCHA, đang thử giải (lần ${captchaAttempts}/${maxCaptchaAttempts})...`);
-        
+
         try {
             const captchaSrc = await page.evaluate(() => {
                 const captchaImage = document.querySelector('form[action="/errors/validateCaptcha"] img');
@@ -1044,7 +1044,7 @@ async function handleCapcha(page, timeout) {
             ])
                 .setTimeout(timeout)
                 .fill(resCapcha.captchaCode);
-                
+
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             // Submit the captcha
@@ -1091,17 +1091,17 @@ async function handleCapcha(page, timeout) {
                 console.log("Lỗi khi kiểm tra form CAPTCHA:", e);
                 captchaResolved = true;
             }
-            
+
         } catch (captchaError) {
             console.log(`Lỗi khi xử lý CAPTCHA: ${captchaError.message}`);
-            
+
             // Handle timeout in captcha
             if (captchaError.message.includes('timeout')) {
                 await handleConnectionTimeout(page, captchaAttempts);
             }
         }
     }
-    
+
     if (!captchaResolved) {
         throw new Error("FAILED_SOLVE_CAPTCHA_MAX_ATTEMPTS");
     }

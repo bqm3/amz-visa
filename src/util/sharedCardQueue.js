@@ -93,6 +93,26 @@ function claimNextCard(owner = '') {
     return null;
 }
 
+function releaseCard(card) {
+    const key = cardKey(card);
+    if (!key || !fs.existsSync(checkCardFilePath)) return false;
+
+    const lines = fs.readFileSync(checkCardFilePath, 'utf8')
+        .replace(/\r/g, '')
+        .split('\n')
+        .filter(Boolean);
+    const remainingLines = lines.filter(line => cardKey(line) !== key);
+
+    if (remainingLines.length === lines.length) return false;
+
+    fs.writeFileSync(
+        checkCardFilePath,
+        remainingLines.length ? `${remainingLines.join('\n')}\n` : '',
+        'utf8'
+    );
+    return true;
+}
+
 function remainingCount() {
     return queue.length;
 }
@@ -100,6 +120,7 @@ function remainingCount() {
 module.exports = {
     initialize,
     claimNextCard,
+    releaseCard,
     remainingCount,
     normalizeCardLine
 };

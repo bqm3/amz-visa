@@ -24,6 +24,8 @@ Changed from per-Chrome card queues to a **shared sequential card queue** with `
 - Prevents duplicate card processing across Chrome instances
 - Each card is written to `checkcard.txt` BEFORE being added to Amazon
 - If card already exists in file, it's skipped
+- Cards that fail during a pre-submit automation step are removed from `checkcard.txt`, so they remain available for a later run
+- Unconfirmed post-submit outcomes remain claimed to avoid accidentally submitting the same card twice
 
 ### 4. Sequential Processing
 - Account 1 gets Card 1

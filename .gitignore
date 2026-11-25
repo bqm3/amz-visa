@@ -115,7 +115,7 @@ src/data/child.txt
 src/data/bin_cache.json
 
 # Output directories
-output/
+# output/
 results/
 logs/
 
@@ -196,3 +196,5 @@ src/data/chrome-profiles
 # License server local data
 license-server/data/
 license-server/keys/private.pem
+
+output/

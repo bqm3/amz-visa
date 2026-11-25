@@ -7,27 +7,27 @@ async function login(page, { email, pass, code, proxy }) {
 
     const timeout = 30000; // 30 seconds timeout to fail fast on errors
     page.setDefaultTimeout(timeout);
-    
+
     // Set navigation timeout separately
     page.setDefaultNavigationTimeout(30000); // 30 seconds navigation timeout
 
     if (proxy && proxy.username && proxy.password) {
         await page.authenticate({ username: proxy.username, password: proxy.password });
-    }    {
+    } {
         const targetPage = page;
         await targetPage.setViewport({
             width: 700,
             height: 700
         })
     }
-    
+
     // Handle CAPTCHA if present
     if (global.data.parentAcc.geminiKey && global.data.parentAcc.geminiKey != "")
         await handleCapcha(page, timeout);
-    
+
     {
         const targetPage = page;
-        await targetPage.goto('https://www.amazon.com/business/register/org/landing?ref_=ab_reg_signinsignup'); 
+        await targetPage.goto('https://www.amazon.co.jp/business/register/org/landing?ref_=ab_reg_signinsignup');
 
         await new Promise(resolve => setTimeout(resolve, 300));
         await targetPage.reload({ waitUntil: 'domcontentloaded', timeout: 8000 });
@@ -42,10 +42,10 @@ async function login(page, { email, pass, code, proxy }) {
         ])
             .setTimeout(timeout)
             .click({
-              offset: {
-                x: 124.20000076293945,
-                y: 11.800003051757812,
-              },
+                offset: {
+                    x: 124.20000076293945,
+                    y: 11.800003051757812,
+                },
             });
     }
     {
@@ -54,7 +54,7 @@ async function login(page, { email, pass, code, proxy }) {
             targetPage.locator('::-p-aria(Enter an email. Work email preferred.)'),
             targetPage.locator("[data-testid='businessEmail-test-id']"),
             targetPage.locator('::-p-xpath(//*[@data-testid=\\"businessEmail-test-id\\"])'),
-            targetPage.locator(":scope >>> [data-testid='businessEmail-test-id']")        ])
+            targetPage.locator(":scope >>> [data-testid='businessEmail-test-id']")])
             .setTimeout(timeout)
             .fill(email);
     }
@@ -73,10 +73,10 @@ async function login(page, { email, pass, code, proxy }) {
             .setTimeout(timeout)
             .on('action', () => startWaitingForEvents())
             .click({
-              offset: {
-                x: 250.20000076293945,
-                y: 16.79998779296875,
-              },
+                offset: {
+                    x: 250.20000076293945,
+                    y: 16.79998779296875,
+                },
             });
         await Promise.all(promises);
     }
@@ -90,10 +90,10 @@ async function login(page, { email, pass, code, proxy }) {
         ])
             .setTimeout(timeout)
             .click({
-              offset: {
-                x: 154.19998168945312,
-                y: 20,
-              },
+                offset: {
+                    x: 154.19998168945312,
+                    y: 20,
+                },
             });
     }
     {
@@ -102,7 +102,7 @@ async function login(page, { email, pass, code, proxy }) {
             targetPage.locator('::-p-aria(Password)'),
             targetPage.locator('#ap_password'),
             targetPage.locator('::-p-xpath(//*[@id=\\"ap_password\\"])'),
-            targetPage.locator(':scope >>> #ap_password')        ])
+            targetPage.locator(':scope >>> #ap_password')])
             .setTimeout(timeout)
             .fill(pass);
     }
@@ -121,10 +121,10 @@ async function login(page, { email, pass, code, proxy }) {
             .setTimeout(2000)
             .on('action', () => startWaitingForEvents())
             .click({
-              offset: {
-                x: 153.39999389648438,
-                y: 13.199981689453125,
-              },
+                offset: {
+                    x: 153.39999389648438,
+                    y: 13.199981689453125,
+                },
             });
         await Promise.all(promises);
     } catch (_) {
@@ -140,12 +140,12 @@ async function login(page, { email, pass, code, proxy }) {
         ])
             .setTimeout(timeout)
             .click({
-              offset: {
-                x: 242.1999969482422,
-                y: 22.199996948242188,
-              },
+                offset: {
+                    x: 242.1999969482422,
+                    y: 22.199996948242188,
+                },
             });
-    }    {
+    } {
         const targetPage = page;
         // Generate 2FA token if code is provided
         let otpCode = '816598'; // Default fallback
@@ -161,7 +161,7 @@ async function login(page, { email, pass, code, proxy }) {
                 otpCode = code;
             }
         }
-        
+
         await puppeteer.Locator.race([
             targetPage.locator('::-p-aria(Enter OTP:)'),
             targetPage.locator('#auth-mfa-otpcode'),
@@ -181,10 +181,10 @@ async function login(page, { email, pass, code, proxy }) {
         ])
             .setTimeout(timeout)
             .click({
-              offset: {
-                x: 164.19998168945312,
-                y: 5.199981689453125,
-              },
+                offset: {
+                    x: 164.19998168945312,
+                    y: 5.199981689453125,
+                },
             });
     }
     {
@@ -202,10 +202,10 @@ async function login(page, { email, pass, code, proxy }) {
             .setTimeout(timeout)
             .on('action', () => startWaitingForEvents())
             .click({
-              offset: {
-                x: 159.39999389648438,
-                y: 12.399993896484375,
-              },
+                offset: {
+                    x: 159.39999389648438,
+                    y: 12.399993896484375,
+                },
             });
         await Promise.all(promises);
     }
@@ -214,39 +214,39 @@ async function login(page, { email, pass, code, proxy }) {
 // CAPTCHA handling function (similar to api/login.js)
 async function handleCapcha(page, timeout) {
     let captchaResolved = false;
-    
+
     while (!captchaResolved) {
         await new Promise((resolve) => setTimeout(resolve, 300));
-        
+
         let captchaForm;
         try {
             captchaForm = await page.$('form[action="/errors/validateCaptcha"] img');
         } catch (_) { }
-        
+
         if (!captchaForm) {
             console.log("Không phát hiện form CAPTCHA, tiếp tục...");
             captchaResolved = true;
             return;
         }
-        
+
         console.log("Phát hiện CAPTCHA, đang thử giải...");
         const captchaSrc = await page.evaluate(() => {
             const captchaImage = document.querySelector('form[action="/errors/validateCaptcha"] img');
             return captchaImage ? captchaImage.src : null;
         });
-        
+
         console.log("Nguồn ảnh CAPTCHA:", captchaSrc);
         const resCapcha = await require(path.join(__dirname, "..", "capcha.js"))(captchaSrc);
-        
+
         if (!resCapcha || !resCapcha.success) {
             console.log("Giải CAPTCHA thất bại, thử lại...");
             console.app("Giải CAPTCHA thất bại, thử lại...");
             continue;
         }
-        
+
         console.log("Kết quả CAPTCHA:", resCapcha);
         console.app("Kết quả CAPTCHA:", resCapcha.captchaCode);
-        
+
         // Fill in the captcha field
         await puppeteer.Locator.race([
             page.locator('::-p-aria(Type characters)'),
@@ -261,7 +261,7 @@ async function handleCapcha(page, timeout) {
                     y: 11.015625,
                 },
             });
-        
+
         await puppeteer.Locator.race([
             page.locator('::-p-aria(Type characters)'),
             page.locator('#captchacharacters'),
@@ -270,7 +270,7 @@ async function handleCapcha(page, timeout) {
         ])
             .setTimeout(timeout)
             .fill(resCapcha.captchaCode);
-        
+
         // Submit the captcha
         const promises = [];
         const startWaitingForEvents = () => {
@@ -283,7 +283,7 @@ async function handleCapcha(page, timeout) {
                     })
             );
         }
-        
+
         await puppeteer.Locator.race([
             page.locator('::-p-aria(Continue shopping)'),
             page.locator('button'),
@@ -299,9 +299,9 @@ async function handleCapcha(page, timeout) {
                     y: 6.015625,
                 },
             });
-        
+
         await Promise.all(promises);
-        
+
         // Check if captcha is still present after submission
         try {
             captchaForm = await page.$('form[action="/errors/validateCaptcha"] img');

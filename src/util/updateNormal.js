@@ -76,7 +76,7 @@ async function isAccountLockedPage(page) {
     try {
         if (!page || page.isClosed()) return false;
         const url = page.url();
-        if (url.includes('account-status.amazon.com')) return true;
+        if (url.includes('account-status.amazon.co.jp')) return true;
 
         return await page.evaluate(() => {
             const text = (document.body && document.body.innerText || '').toLowerCase();
@@ -132,7 +132,7 @@ function loadLockedAccountEmails() {
                 Object.keys(data.lockedAccounts).forEach(email => locked.add(email));
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     try {
         if (fs.existsSync(lockedPath)) {
@@ -141,14 +141,14 @@ function loadLockedAccountEmails() {
                 if (match) locked.add(match[1].trim());
             });
         }
-    } catch (_) {}
+    } catch (_) { }
 
     return locked;
 }
 
 async function returnToWallet(page) {
     try {
-        await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
+        await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', {
             waitUntil: 'domcontentloaded',
             timeout: 45000
         });
@@ -161,12 +161,12 @@ async function returnToWallet(page) {
 async function updateNormal() {
     // ✅ RESET STATE FOR NEW RUN
     currentProxyIndex = 0;
-    
+
     // ✅ Use numChrome from UI config, fallback to proxy count, minimum 1
-    maxConcurrentWindows = (global.uiConfig && global.uiConfig.numChrome) 
-        ? global.uiConfig.numChrome 
+    maxConcurrentWindows = (global.uiConfig && global.uiConfig.numChrome)
+        ? global.uiConfig.numChrome
         : Math.max(proxies.length, 1);
-    
+
     windowManager.reset();
     console.log(`Số Chrome chạy song song tối đa: ${maxConcurrentWindows}`);
     console.app(`Số Chrome chạy song song tối đa: ${maxConcurrentWindows}`);
@@ -375,15 +375,15 @@ async function processAccount(accountLine, index) {
                             page.waitForNavigation({ timeout: 15000 }),
                             new Promise(resolve => setTimeout(resolve, 4000))
                         ]);
-                    } catch (_) {}
+                    } catch (_) { }
                 }
             }
-        } catch (_) {}
+        } catch (_) { }
 
         if (global.data.settings.addAddress) {
             // Post-login action: open Addresses page and click "Add Address" tile.
             try {
-                await page.goto('https://www.amazon.com/a/addresses?ref_=ya_d_c_addr', {
+                await page.goto('https://www.amazon.co.jp/a/addresses?ref_=ya_d_c_addr', {
                     waitUntil: 'domcontentloaded',
                     timeout: 45000
                 });
@@ -401,7 +401,7 @@ async function processAccount(accountLine, index) {
                         const el = document.querySelector(selector);
                         if (!el) continue;
                         const clickable = el.closest('.first-desktop-address-tile') || el;
-                        try { clickable.scrollIntoView({ block: 'center' }); } catch (_) {}
+                        try { clickable.scrollIntoView({ block: 'center' }); } catch (_) { }
                         try {
                             clickable.click();
                             return { success: true, selector };
@@ -409,7 +409,7 @@ async function processAccount(accountLine, index) {
                             try {
                                 clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
                                 return { success: true, selector: `${selector}:dispatch` };
-                            } catch (_) {}
+                            } catch (_) { }
                         }
                     }
                     return { success: false };
@@ -427,8 +427,8 @@ async function processAccount(accountLine, index) {
                 const hasAddressForm = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
                 if (!hasAddressForm) {
                     const directAddUrls = [
-                        'https://www.amazon.com/a/addresses/add?ref_=ya_d_c_addr',
-                        'https://www.amazon.com/a/addresses/add'
+                        'https://www.amazon.co.jp/a/addresses/add?ref_=ya_d_c_addr',
+                        'https://www.amazon.co.jp/a/addresses/add'
                     ];
                     for (const url of directAddUrls) {
                         try {
@@ -436,7 +436,7 @@ async function processAccount(accountLine, index) {
                             await new Promise(resolve => setTimeout(resolve, 2000));
                             const found = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
                             if (found) break;
-                        } catch (_) {}
+                        } catch (_) { }
                     }
                 }
 
@@ -456,118 +456,153 @@ async function processAccount(accountLine, index) {
             console.app(`Bỏ qua bước thêm địa chỉ cho ${email}`);
         }
 
-            // Continue with card flow similar to scan/check flow.
-            try {
-                // For normal accounts, go directly to consumer wallet to avoid business-only routing.
-                await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
-                    waitUntil: 'domcontentloaded',
-                    timeout: 45000
-                });
-                await new Promise(resolve => setTimeout(resolve, 1500));
+        // Continue with card flow similar to scan/check flow.
+        try {
+            // For normal accounts, go directly to consumer wallet to avoid business-only routing.
+            await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', {
+                waitUntil: 'domcontentloaded',
+                timeout: 45000
+            });
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
-                if (sharedCardQueue.remainingCount() === 0) {
-                    console.log(`Không còn thẻ dùng chung khả dụng cho ${email}`);
-                    console.app(`Không còn thẻ dùng chung khả dụng cho ${email}`);
-                } else {
-                    const addCard = require(path.join(__dirname, '..', 'api', 'addCard.js'));
+            if (sharedCardQueue.remainingCount() === 0) {
+                console.log(`Không còn thẻ dùng chung khả dụng cho ${email}`);
+                console.app(`Không còn thẻ dùng chung khả dụng cho ${email}`);
+            } else {
+                const MAX_LIVE_CARDS = 15;
+                const addCard = require(path.join(__dirname, '..', 'api', 'addCard.js'));
 
-                    let liveCount = 0;
-                    let dieCount = 0;
-                    const pendingBatch = [];
+                let liveCount = 0;
+                let dieCount = 0;
+                const pendingBatch = [];
 
-                    const verifyBatch = async () => {
-                        if (pendingBatch.length === 0) return;
+                const verifyBatch = async () => {
+                    if (pendingBatch.length === 0) return;
 
-                        console.log(`Bắt đầu check batch cho ${pendingBatch.length} thẻ...`);
-                        console.app(`Bắt đầu check batch cho ${pendingBatch.length} thẻ...`);
+                    console.log(`Bắt đầu check batch cho ${pendingBatch.length} thẻ...`);
+                    console.app(`Bắt đầu check batch cho ${pendingBatch.length} thẻ...`);
 
-                        const batchResults = await addCard.verifyCardsBatch(page, pendingBatch.map(item => item.form));
+                    const batchResults = await addCard.verifyCardsBatch(page, pendingBatch.map(item => item.form));
 
-                        for (const item of pendingBatch) {
-                            const cardResult = batchResults[item.form.number];
-                            if (cardResult && cardResult.success) {
-                                liveCount++;
-                                appendCardResult('live', item.card, email);
-                                console.log(`Thẻ LIVE ***${item.card.number.slice(-4)} cho ${email}`);
-                                console.app(`Thẻ LIVE ***${item.card.number.slice(-4)} cho ${email}`);
-                            } else {
-                                const errStr = cardResult ? cardResult.error : 'VERIFY_FAILED';
-                                const reason = `verify_card_batch: ${errStr}`;
-                                dieCount++;
-                                appendCardResult('die', item.card, email, reason);
-                                console.log(`Thẻ DIE ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
-                                console.app(`Thẻ DIE ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
-                            }
+                    for (const item of pendingBatch) {
+                        const cardResult = batchResults[item.form.number];
+                        if (cardResult && cardResult.success) {
+                            liveCount++;
+                            appendCardResult('live', item.card, email);
+                            console.log(`Thẻ LIVE ***${item.card.number.slice(-4)} cho ${email}`);
+                            console.app(`Thẻ LIVE ***${item.card.number.slice(-4)} cho ${email}`);
+                        } else if (cardResult && cardResult.error === 'CARD_DIE') {
+                            dieCount++;
+                            appendCardResult('die', item.card, email, 'verify_card_batch: CARD_DIE');
+                            console.log(`Thẻ DIE ***${item.card.number.slice(-4)} cho ${email} (verify_card_batch: CARD_DIE)`);
+                            console.app(`Thẻ DIE ***${item.card.number.slice(-4)} cho ${email} (verify_card_batch: CARD_DIE)`);
+                        } else {
+                            const errStr = cardResult ? cardResult.error : 'VERIFY_FAILED';
+                            const reason = `verify_card_batch chưa xác định trạng thái: ${errStr}`;
+                            console.log(`Không xác định trạng thái thẻ ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
+                            console.app(`Không xác định trạng thái thẻ ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
                         }
+                    }
 
-                        pendingBatch.length = 0;
+                    pendingBatch.length = 0;
+                };
+
+                while (true) {
+                    if (liveCount >= MAX_LIVE_CARDS || (liveCount + dieCount) >= MAX_LIVE_CARDS) {
+                        console.log(`Đã đạt giới hạn tối đa ${MAX_LIVE_CARDS} thẻ cho account ${email}`);
+                        console.app(`Đã đạt giới hạn tối đa ${MAX_LIVE_CARDS} thẻ cho account ${email}`);
+                        break;
+                    }
+                    if (global.data.settings.stopRequested) {
+                        console.app(`Tiến trình bị dừng, dừng claim thẻ cho ${email}`);
+                        break;
+                    }
+                    if (!page || page.isClosed()) {
+                        console.app(`Trang đã đóng cho ${email}, dừng claim thẻ dùng chung`);
+                        break;
+                    }
+
+                    if (pendingBatch.length > 0 && (liveCount + dieCount + pendingBatch.length >= MAX_LIVE_CARDS)) {
+                        await verifyBatch();
+                        if (liveCount >= MAX_LIVE_CARDS || (liveCount + dieCount) >= MAX_LIVE_CARDS) {
+                            console.log(`Đã đạt giới hạn tối đa ${MAX_LIVE_CARDS} thẻ cho account ${email}`);
+                            console.app(`Đã đạt giới hạn tối đa ${MAX_LIVE_CARDS} thẻ cho account ${email}`);
+                            break;
+                        }
+                    }
+
+                    const card = sharedCardQueue.claimNextCard(email);
+                    if (!card) {
+                        console.log(`Đã hết thẻ dùng chung cho ${email}`);
+                        console.app(`Đã hết thẻ dùng chung cho ${email}`);
+                        break;
+                    }
+
+                    const form = {
+                        number: card.number,
+                        month: card.month,
+                        year: card.year,
+                        name: card.name,
+                        cvc: card.cvc
                     };
 
-                    while (true) {
-                        if (global.data.settings.stopRequested) {
-                            console.app(`Tiến trình bị dừng, dừng claim thẻ cho ${email}`);
-                            break;
-                        }
-                        if (!page || page.isClosed()) {
-                            console.app(`Trang đã đóng cho ${email}, dừng claim thẻ dùng chung`);
-                            break;
-                        }
+                    console.log(`Đang xử lý thẻ dùng chung ***${card.number.slice(-4)} cho ${email}`);
+                    console.app(`Đang xử lý thẻ dùng chung ***${card.number.slice(-4)} cho ${email}`);
 
-                        const card = sharedCardQueue.claimNextCard(email);
-                        if (!card) {
-                            console.log(`Đã hết thẻ dùng chung cho ${email}`);
-                            console.app(`Đã hết thẻ dùng chung cho ${email}`);
-                            break;
-                        }
+                    const res = await addCard(page, form, 0, false);
 
-                        const form = {
-                            number: card.number,
-                            month: card.month,
-                            year: card.year,
-                            name: card.name,
-                            cvc: card.cvc
-                        };
-
-                        console.log(`Đang xử lý thẻ dùng chung ***${card.number.slice(-4)} cho ${email}`);
-                        console.app(`Đang xử lý thẻ dùng chung ***${card.number.slice(-4)} cho ${email}`);
-
-                        const res = await addCard(page, form, 0, false);
-
-                        if (res.success) {
-                            pendingBatch.push({ card, form });
-                        } else {
-                            const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
+                    if (res.success) {
+                        pendingBatch.push({ card, form });
+                    } else {
+                        const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
+                        if (res.error === 'CARD_DIE') {
                             dieCount++;
                             appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
                             console.log(`Thẻ DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
                             console.app(`Thẻ DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
-
-                            const fatalReason = `${res.step || ''} ${res.error || ''}`.toLowerCase();
-                            if (fatalReason.includes('page_closed') || fatalReason.includes('detached frame') || fatalReason.includes('session closed')) {
-                                console.app(`Lỗi nghiêm trọng ở page/frame cho ${email}, dừng claim thẻ dùng chung`);
-                                break;
-                            }
+                        } else if (res.step && res.step !== 'verify_card_submit') {
+                            const released = sharedCardQueue.releaseCard(card);
+                            const retryMessage = `Lỗi thao tác${reason}; thẻ không bị đánh dấu DIE${released ? ', đã bỏ claim để chạy lại sau' : ', cần kiểm tra checkcard.txt'}`;
+                            console.log(`Chưa xác định thẻ ***${card.number.slice(-4)} cho ${email}: ${retryMessage}`);
+                            console.app(`Chưa xác định thẻ ***${card.number.slice(-4)} cho ${email}: ${retryMessage}`);
+                        } else {
+                            const unresolvedMessage = `Chưa xác nhận kết quả submit${reason}; không đánh dấu DIE và giữ claim để tránh thêm trùng`;
+                            console.log(`Chưa xác định trạng thái thẻ ***${card.number.slice(-4)} cho ${email}: ${unresolvedMessage}`);
+                            console.app(`Chưa xác định trạng thái thẻ ***${card.number.slice(-4)} cho ${email}: ${unresolvedMessage}`);
                         }
 
-                        const remainingCount = sharedCardQueue.remainingCount();
-                        if (pendingBatch.length >= 10 || (remainingCount === 0 && pendingBatch.length > 0)) {
-                            await verifyBatch();
+                        const fatalReason = `${res.step || ''} ${res.error || ''}`.toLowerCase();
+                        if (fatalReason.includes('page_closed') || fatalReason.includes('detached frame') || fatalReason.includes('session closed')) {
+                            console.app(`Lỗi nghiêm trọng ở page/frame cho ${email}, dừng claim thẻ dùng chung`);
+                            break;
                         }
-
-                        await returnToWallet(page);
                     }
 
-                    if (pendingBatch.length > 0) {
+                    const remainingCount = sharedCardQueue.remainingCount();
+                    if (pendingBatch.length >= 10 || (liveCount + dieCount + pendingBatch.length >= MAX_LIVE_CARDS) || (remainingCount === 0 && pendingBatch.length > 0)) {
                         await verifyBatch();
                     }
 
-                    console.log(`Đã hoàn tất flow thẻ cho ${email}: ${liveCount} live, ${dieCount} die`);
-                    console.app(`Đã hoàn tất flow thẻ cho ${email}: ${liveCount} live, ${dieCount} die`);
+                    if (liveCount >= MAX_LIVE_CARDS || (liveCount + dieCount) >= MAX_LIVE_CARDS) {
+                        console.log(`Đã đạt giới hạn tối đa ${MAX_LIVE_CARDS} thẻ cho account ${email}`);
+                        console.app(`Đã đạt giới hạn tối đa ${MAX_LIVE_CARDS} thẻ cho account ${email}`);
+                        break;
+                    }
+
+                    await returnToWallet(page);
                 }
-            } catch (cardFlowError) {
-                console.log(`Lỗi flow thẻ cho ${email}: ${cardFlowError.message}`);
-                console.app(`Lỗi flow thẻ cho ${email}: ${cardFlowError.message}`);
+
+                if (pendingBatch.length > 0) {
+                    await verifyBatch();
+                }
+
+                console.log(`Đã hoàn tất flow thẻ cho ${email}: ${liveCount} live, ${dieCount} die`);
+                console.app(`Đã hoàn tất flow thẻ cho ${email}: ${liveCount} live, ${dieCount} die`);
             }
+        } catch (cardFlowError) {
+            console.log(`Lỗi flow thẻ cho ${email}: ${cardFlowError.message}`);
+            console.app(`Lỗi flow thẻ cho ${email}: ${cardFlowError.message}`);
+        }
         console.log(`Login thành công: ${email}`);
         console.app(`Login thành công: ${email}`);
     } catch (error) {
@@ -583,7 +618,7 @@ async function processAccount(accountLine, index) {
         if (browser) {
             try {
                 await browser.close();
-            } catch (e) {}
+            } catch (e) { }
             if (global.activeBrowsers) {
                 const idx = global.activeBrowsers.indexOf(browser);
                 if (idx > -1) global.activeBrowsers.splice(idx, 1);

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AmzUSBootstrapper")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5dfaf69e461511e2bff57ff2c5486f8a8c46798b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6430c9b60b02577e583015d20c27645933ed44f9")]
 [assembly: System.Reflection.AssemblyProductAttribute("AmzUSBootstrapper")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AmzUSBootstrapper")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -50,13 +50,13 @@ function loadBusinessAccounts() {
 function shouldSkipBusinessUpgrade(email) {
     const businessAccounts = loadBusinessAccounts();
     const isAlreadyBusiness = businessAccounts.includes(email);
-    
+
     if (isAlreadyBusiness) {
         console.log(`Account business đã tồn tại cho ${email}, chọn Business account và tiếp tục`);
         console.app(`Account business đã tồn tại cho ${email}, chọn Business account và tiếp tục`);
         return false;
     }
-    
+
     return false;
 }
 
@@ -69,8 +69,32 @@ if (proxies.length === 0) {
 let currentAccountIndex = 0;
 let currentProxyIndex = 0;
 let maxConcurrentWindows = 1; // Will be set at runtime in updateBusiness()
+const MAX_BUSINESS_CARDS_PER_ACCOUNT = 14;
+let businessCardLimits = new Map();
 if (!global.activeBrowsers) global.activeBrowsers = [];
 const activeBrowsers = global.activeBrowsers;
+
+function createBalancedCardLimits(accountLines, availableCardCount) {
+    const limits = new Map();
+    const accounts = accountLines
+        .map(line => String(line || '').split('|')[0].trim())
+        .filter(Boolean);
+
+    if (accounts.length === 0 || availableCardCount <= 0) return limits;
+
+    const cappedTotal = Math.min(
+        availableCardCount,
+        accounts.length * MAX_BUSINESS_CARDS_PER_ACCOUNT
+    );
+    const baseLimit = Math.floor(cappedTotal / accounts.length);
+    const remainder = cappedTotal % accounts.length;
+
+    accounts.forEach((email, index) => {
+        limits.set(email, baseLimit + (index < remainder ? 1 : 0));
+    });
+
+    return limits;
+}
 
 function normalizeCardLine(cardLine) {
     const [number, monthRaw, yearRaw, cvc, ...nameParts] = String(cardLine || '').split('|');
@@ -114,7 +138,7 @@ async function isAccountLockedPage(page) {
     try {
         if (!page || page.isClosed()) return false;
         const url = page.url();
-        if (url.includes('account-status.amazon.com')) return true;
+        if (url.includes('account-status.amazon.co.jp')) return true;
 
         return await page.evaluate(() => {
             const text = (document.body && document.body.innerText || '').toLowerCase();
@@ -178,7 +202,7 @@ function loadLockedAccountEmails() {
                 Object.keys(data.lockedAccounts).forEach(email => locked.add(email));
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     try {
         if (fs.existsSync(lockedPath)) {
@@ -187,7 +211,7 @@ function loadLockedAccountEmails() {
                 if (match) locked.add(match[1].trim());
             });
         }
-    } catch (_) {}
+    } catch (_) { }
 
     return locked;
 }
@@ -249,7 +273,7 @@ async function clickStartBrowsingIfPresent(page, email) {
 
 async function returnToWallet(page) {
     try {
-        await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
+        await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', {
             waitUntil: 'domcontentloaded',
             timeout: 45000
         });
@@ -270,9 +294,16 @@ async function runBusinessCardFlow(page, email) {
         return;
     }
 
+    const cardLimit = businessCardLimits.get(email) || 0;
+    if (cardLimit === 0) {
+        console.app(`Không có thẻ được phân bổ cho account business ${email}`);
+        return;
+    }
+
     const addCard = require(path.join(__dirname, '..', 'api', 'addCard.js'));
     let liveCount = 0;
     let dieCount = 0;
+    let claimedCount = 0;
     const pendingBatch = [];
 
     const verifyBatch = async () => {
@@ -290,13 +321,16 @@ async function runBusinessCardFlow(page, email) {
                 appendCardResult('live', item.card, email);
                 console.log(`Thẻ business LIVE ***${item.card.number.slice(-4)} cho ${email}`);
                 console.app(`Thẻ business LIVE ***${item.card.number.slice(-4)} cho ${email}`);
+            } else if (cardResult && cardResult.error === 'CARD_DIE') {
+                dieCount++;
+                appendCardResult('die', item.card, email, 'verify_card_batch: CARD_DIE');
+                console.log(`Thẻ business DIE ***${item.card.number.slice(-4)} cho ${email} (verify_card_batch: CARD_DIE)`);
+                console.app(`Thẻ business DIE ***${item.card.number.slice(-4)} cho ${email} (verify_card_batch: CARD_DIE)`);
             } else {
                 const errStr = cardResult ? cardResult.error : 'VERIFY_FAILED';
-                const reason = `verify_card_batch: ${errStr}`;
-                dieCount++;
-                appendCardResult('die', item.card, email, reason);
-                console.log(`Thẻ business DIE ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
-                console.app(`Thẻ business DIE ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
+                const reason = `verify_card_batch chưa xác định trạng thái: ${errStr}`;
+                console.log(`Không xác định trạng thái thẻ business ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
+                console.app(`Không xác định trạng thái thẻ business ***${item.card.number.slice(-4)} cho ${email} (${reason})`);
             }
         }
 
@@ -306,6 +340,11 @@ async function runBusinessCardFlow(page, email) {
     await returnToWallet(page);
 
     while (true) {
+        if (claimedCount >= cardLimit) {
+            console.log(`Đã xử lý đủ ${cardLimit}/${MAX_BUSINESS_CARDS_PER_ACCOUNT} thẻ được phân bổ cho account business ${email}`);
+            console.app(`Đã xử lý đủ ${cardLimit}/${MAX_BUSINESS_CARDS_PER_ACCOUNT} thẻ được phân bổ cho account business ${email}`);
+            break;
+        }
         if (global.data.settings.stopRequested) {
             console.app(`Tiến trình bị dừng, dừng claim thẻ cho ${email}`);
             break;
@@ -321,6 +360,7 @@ async function runBusinessCardFlow(page, email) {
             console.app(`Đã hết thẻ dùng chung cho ${email}`);
             break;
         }
+        claimedCount++;
 
         const form = {
             number: card.number,
@@ -338,10 +378,21 @@ async function runBusinessCardFlow(page, email) {
             pendingBatch.push({ card, form });
         } else {
             const reason = res.step || res.error ? ` (${res.step || 'unknown_step'}: ${res.error || 'unknown_error'})` : '';
-            dieCount++;
-            appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
-            console.log(`Thẻ business DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
-            console.app(`Thẻ business DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
+            if (res.error === 'CARD_DIE') {
+                dieCount++;
+                appendCardResult('die', card, email, reason.replace(/^\s*\(|\)\s*$/g, ''));
+                console.log(`Thẻ business DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
+                console.app(`Thẻ business DIE ***${card.number.slice(-4)} cho ${email}${reason}`);
+            } else if (res.step && res.step !== 'verify_card_submit') {
+                const released = sharedCardQueue.releaseCard(card);
+                const retryMessage = `Lỗi thao tác${reason}; thẻ không bị đánh dấu DIE${released ? ', đã bỏ claim để chạy lại sau' : ', cần kiểm tra checkcard.txt'}`;
+                console.log(`Chưa xác định thẻ business ***${card.number.slice(-4)} cho ${email}: ${retryMessage}`);
+                console.app(`Chưa xác định thẻ business ***${card.number.slice(-4)} cho ${email}: ${retryMessage}`);
+            } else {
+                const unresolvedMessage = `Chưa xác nhận kết quả submit${reason}; không đánh dấu DIE và giữ claim để tránh thêm trùng`;
+                console.log(`Chưa xác định trạng thái thẻ business ***${card.number.slice(-4)} cho ${email}: ${unresolvedMessage}`);
+                console.app(`Chưa xác định trạng thái thẻ business ***${card.number.slice(-4)} cho ${email}: ${unresolvedMessage}`);
+            }
 
             const fatalReason = `${res.step || ''} ${res.error || ''}`.toLowerCase();
             if (fatalReason.includes('page_closed') || fatalReason.includes('detached frame') || fatalReason.includes('session closed')) {
@@ -351,8 +402,14 @@ async function runBusinessCardFlow(page, email) {
         }
 
         const remainingCount = sharedCardQueue.remainingCount();
-        if (pendingBatch.length >= 10 || (remainingCount === 0 && pendingBatch.length > 0)) {
+        if (pendingBatch.length >= 10 || claimedCount >= cardLimit || (remainingCount === 0 && pendingBatch.length > 0)) {
             await verifyBatch();
+        }
+
+        if (claimedCount >= cardLimit) {
+            console.log(`Đã xử lý đủ ${cardLimit}/${MAX_BUSINESS_CARDS_PER_ACCOUNT} thẻ được phân bổ cho account business ${email}`);
+            console.app(`Đã xử lý đủ ${cardLimit}/${MAX_BUSINESS_CARDS_PER_ACCOUNT} thẻ được phân bổ cho account business ${email}`);
+            break;
         }
 
         await returnToWallet(page);
@@ -362,8 +419,8 @@ async function runBusinessCardFlow(page, email) {
         await verifyBatch();
     }
 
-    console.log(`Đã hoàn tất flow thẻ business cho ${email}: ${liveCount} live, ${dieCount} die`);
-    console.app(`Đã hoàn tất flow thẻ business cho ${email}: ${liveCount} live, ${dieCount} die`);
+    console.log(`Đã hoàn tất flow thẻ business cho ${email}: phân bổ ${cardLimit}, đã xử lý ${claimedCount}, ${liveCount} live, ${dieCount} die`);
+    console.app(`Đã hoàn tất flow thẻ business cho ${email}: phân bổ ${cardLimit}, đã xử lý ${claimedCount}, ${liveCount} live, ${dieCount} die`);
 }
 
 async function runBusinessAddressFlow(page, email) {
@@ -373,7 +430,7 @@ async function runBusinessAddressFlow(page, email) {
     }
 
     try {
-        await page.goto('https://www.amazon.com/a/addresses?ref_=ya_d_c_addr', {
+        await page.goto('https://www.amazon.co.jp/a/addresses?ref_=ya_d_c_addr', {
             waitUntil: 'domcontentloaded',
             timeout: 45000
         });
@@ -391,7 +448,7 @@ async function runBusinessAddressFlow(page, email) {
                 const el = document.querySelector(selector);
                 if (!el) continue;
                 const clickable = el.closest('.first-desktop-address-tile') || el;
-                try { clickable.scrollIntoView({ block: 'center' }); } catch (_) {}
+                try { clickable.scrollIntoView({ block: 'center' }); } catch (_) { }
                 try {
                     clickable.click();
                     return { success: true, selector };
@@ -399,7 +456,7 @@ async function runBusinessAddressFlow(page, email) {
                     try {
                         clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
                         return { success: true, selector: `${selector}:dispatch` };
-                    } catch (_) {}
+                    } catch (_) { }
                 }
             }
             return { success: false };
@@ -407,8 +464,8 @@ async function runBusinessAddressFlow(page, email) {
 
         if (!clickedAddAddress.success) {
             const directAddUrls = [
-                'https://www.amazon.com/a/addresses/add?ref_=ya_d_c_addr',
-                'https://www.amazon.com/a/addresses/add'
+                'https://www.amazon.co.jp/a/addresses/add?ref_=ya_d_c_addr',
+                'https://www.amazon.co.jp/a/addresses/add'
             ];
             for (const url of directAddUrls) {
                 try {
@@ -416,7 +473,7 @@ async function runBusinessAddressFlow(page, email) {
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     const found = await page.$('#address-ui-widgets-enterAddressPhoneNumber');
                     if (found) break;
-                } catch (_) {}
+                } catch (_) { }
             }
         } else {
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -439,23 +496,23 @@ function addBusinessAccount(email) {
     try {
         const dataPath = path.join(__dirname, "..", "data", "data.json");
         let data = {};
-        
+
         // Load existing data or create new structure
         if (fs.existsSync(dataPath)) {
             data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
         }
-        
+
         // Initialize businessAccounts array if not exists
         if (!data.businessAccounts) {
             data.businessAccounts = [];
         }
-        
+
         // Add to business accounts list if not already present
         if (!data.businessAccounts.includes(email)) {
             data.businessAccounts.push(email);
             console.log(`Đã thêm ${email} vào danh sách account business`);
             console.app(`Đã thêm ${email} vào danh sách account business`);
-            
+
             // Save data immediately
             fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
             return true;
@@ -464,7 +521,7 @@ function addBusinessAccount(email) {
             console.app(`${email} đã có trong danh sách account business`);
             return false;
         }
-        
+
     } catch (error) {
         console.error(`Lỗi khi thêm account business ${email}:`, error.message);
         console.app(`Lỗi khi thêm account business ${email}: ${error.message}`);
@@ -479,15 +536,16 @@ async function updateBusiness() {
     // ✅ RESET STATE FOR NEW RUN
     currentAccountIndex = 0;
     currentProxyIndex = 0;
-    
+    businessCardLimits = new Map();
+
     // ✅ Use numChrome from UI config, fallback to proxy count, minimum 1
-    maxConcurrentWindows = (global.uiConfig && global.uiConfig.numChrome) 
-        ? global.uiConfig.numChrome 
+    maxConcurrentWindows = (global.uiConfig && global.uiConfig.numChrome)
+        ? global.uiConfig.numChrome
         : Math.max(proxies.length, 1);
-    
+
     // ✅ RESET WINDOW POSITIONS AT START
     windowManager.reset();
-    
+
     console.log(`Số Chrome chạy song song tối đa: ${maxConcurrentWindows}`);
     console.app(`Số Chrome chạy song song tối đa: ${maxConcurrentWindows}`);
     console.app("Bắt đầu quy trình đăng ký account business...");
@@ -514,7 +572,7 @@ async function updateBusiness() {
 
     for (const accountLine of childAccounts) {
         const email = accountLine.split('|')[0];
-        
+
         if (lockedAccounts.has(email)) {
             console.app(`Bỏ qua account bị khóa: ${email}`);
             skippedCount++;
@@ -537,6 +595,17 @@ async function updateBusiness() {
         console.app('Tất cả account đã là account business');
         return;
     }
+
+    businessCardLimits = createBalancedCardLimits(
+        accountsToProcess,
+        sharedCardQueue.remainingCount()
+    );
+    const distribution = accountsToProcess.map(accountLine => {
+        const email = accountLine.split('|')[0].trim();
+        return `${email}: ${businessCardLimits.get(email) || 0}`;
+    });
+    console.log(`Phân bổ thẻ business (tối đa ${MAX_BUSINESS_CARDS_PER_ACCOUNT}/acc): ${distribution.join(', ')}`);
+    console.app(`Đã chia đều thẻ business cho ${accountsToProcess.length} acc, tối đa ${MAX_BUSINESS_CARDS_PER_ACCOUNT} thẻ/acc`);
 
     // Process remaining accounts
     const workerCount = Math.min(maxConcurrentWindows, accountsToProcess.length);
@@ -703,7 +772,7 @@ async function processAccount(accountLine, batchIndex) {
 
         page = await browser.newPage();
 
-        
+
         // ✅ SET VIEWPORT TO MATCH WINDOW SIZE
         await page.setViewport({
             width: windowPosition.width - 20,
@@ -834,7 +903,7 @@ async function processAccount(accountLine, batchIndex) {
             } catch (error) {
                 throw new Error(error.message);
             }
-            
+
             await new Promise(resolve => setTimeout(resolve, 2000));
             await require(path.join(__dirname, "..", "api", "business", "fillInfo.js")).fillInfo(page, loginForm);
             await require(path.join(__dirname, "..", "api", "business", "fillInfo.js")).finalSetup(page, loginForm);
@@ -872,8 +941,8 @@ async function processAccount(accountLine, batchIndex) {
 
         if (error.message.includes("Navigating frame was detached")) {
             console.log(`[${batchIndex + 1}] Đã hoàn tất setup account business cho: ${email} (frame bị detach, khả năng đã thành công)`);
-            console.app(`[${batchIndex + 1}] Đã hoàn tất setup account business cho: ${email} (frame bị detach, khả năng đã thành công)`); 
-            
+            console.app(`[${batchIndex + 1}] Đã hoàn tất setup account business cho: ${email} (frame bị detach, khả năng đã thành công)`);
+
             // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
             addBusinessAccount(email);
             if (page && !page.isClosed()) {
@@ -881,14 +950,14 @@ async function processAccount(accountLine, batchIndex) {
                 await clickStartBrowsingIfPresent(page, email);
                 await runBusinessCardFlow(page, email);
             }
-            
+
         } else if (error.message.includes("ACCOUNT_ALREADY_BUSINESS")) {
             console.log(`[${batchIndex + 1}] Account đã là business: ${email}`);
             console.app(`[${batchIndex + 1}] Account đã là business: ${email}`);
-            
+
             // ✅ ADD TO DATA.JSON - SIMPLE FORMAT
             addBusinessAccount(email);
-            
+
         } else {
             console.error(`[${batchIndex + 1}] Lỗi khi login ${email}:`, error.message);
             console.app(`[${batchIndex + 1}] Lỗi khi login ${email}: ${error.message}`);
@@ -955,7 +1024,7 @@ process.on('SIGTERM', async () => {
 async function waitForPageLoad(page, timeout = 30000) {
     try {
         console.log('Đang chờ trang tải xong...');
-        
+
         // Wait for document ready state
         await page.evaluate(() => {
             return new Promise((resolve) => {
@@ -966,22 +1035,22 @@ async function waitForPageLoad(page, timeout = 30000) {
                 }
             });
         });
-        
-        await page.waitForNavigation({ 
-            waitUntil: 'networkidle0', 
-            timeout 
+
+        await page.waitForNavigation({
+            waitUntil: 'networkidle0',
+            timeout
         }).catch(() => {
             console.log('Chờ network idle bị timeout, vẫn tiếp tục...');
         });
-        
+
         // Additional wait for any dynamic content
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
         console.log('Trang đã tải xong');
-        
+
     } catch (error) {
         console.log(`Chờ tải trang bị timeout: ${error.message}, vẫn tiếp tục...`);
-        
+
         // Fallback: just wait for document ready state
         await page.evaluate(() => {
             return new Promise((resolve) => {

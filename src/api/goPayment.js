@@ -13,7 +13,7 @@ async function go(page) {
     } catch (error) {
         console.log("Lỗi khi đặt viewport:", error.message);
     }
-    
+
     try {
         const targetPage = page;
         const promises = [];
@@ -38,7 +38,7 @@ async function go(page) {
         console.log("Lỗi khi bấm Your Account, thử mở trang thay thế...");
         // Try direct URL navigation as fallback
         try {
-            await page.goto('https://www.amazon.com/gp/css/homepage.html', { waitUntil: 'networkidle0' });
+            await page.goto('https://www.amazon.co.jp/gp/css/homepage.html', { waitUntil: 'networkidle0' });
         } catch (navError) {
             return { error: 'Không thể mở trang Your Account' };
         }
@@ -70,10 +70,10 @@ async function go(page) {
             .setTimeout(timeout)
             .on('action', () => startWaitingForEvents())
             .click({
-              offset: {
-                x: 129.79998779296875,
-                y: 13.36248779296875,
-              },
+                offset: {
+                    x: 129.79998779296875,
+                    y: 13.36248779296875,
+                },
             });
         await Promise.all(promises);
     }

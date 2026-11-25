@@ -30,7 +30,7 @@ clearChromeProfilesOnStartup();
 
 // Initialize Telegram Bot
 const botToken = process.env.BOT_TOKEN;
-const groupIdInput = process.env.GROUP_IDS || "";
+const groupIdInput = process.env.GROUP_IDS || process.env.ADMIN_IDS || "";
 const groupIds = groupIdInput.split(",").map(id => id.trim()).filter(id => id !== "");
 
 let bot = null;
@@ -38,6 +38,7 @@ if (botToken) {
     try {
         bot = new TelegramBot(botToken, { polling: false });
     } catch (err) {
+        console.error("Lỗi khi khởi tạo Telegram Bot:", err.message);
     }
 }
 
@@ -1028,7 +1029,8 @@ function createMainWindow(centralWidget) {
             if (bot && groupIds.length > 0) {
                 groupIds.forEach(chatId => {
                     bot.sendMessage(chatId, `💳 [AMZ-VISA] THẺ LIVE!\n${msg}`)
-                        .catch(() => {});
+                        .then(() => console.log(`[Telegram] Đã gửi thông báo thẻ LIVE tới Telegram (${chatId})`))
+                        .catch(err => console.error(`[Telegram Error] Không thể gửi tới Telegram (${chatId}):`, err.message));
                 });
             }
             

@@ -41,6 +41,35 @@ async function isIframeValid(page, iframeSelector) {
     }
 }
 
+async function isCardFormVisible(page) {
+    const cardSelectors = [
+        'input[data-testid="card-text-input"]',
+        '#card-number-input input',
+        'input[autocomplete="cc-number"]',
+        'input[name="addCreditCardNumber"]',
+        'input[name*="cardNumber"]',
+        'input[name*="addCreditCard"]',
+        'input[id*="cardNumber"]',
+        'input[type="tel"][maxlength="19"]',
+        'input[type="tel"][maxlength="16"]'
+    ];
+    for (const ctx of [page, ...page.frames()]) {
+        try {
+            const found = await ctx.evaluate((sels) => {
+                const isVisible = (el) => {
+                    if (!el || el.disabled || el.readOnly) return false;
+                    const s = window.getComputedStyle(el);
+                    const r = el.getBoundingClientRect();
+                    return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0 && r.height > 0;
+                };
+                return sels.some(sel => Array.from(document.querySelectorAll(sel)).some(isVisible));
+            }, cardSelectors);
+            if (found) return true;
+        } catch { }
+    }
+    return false;
+}
+
 async function findFrameWithSelector(page, selectors, timeoutMs = 12000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
@@ -80,14 +109,14 @@ async function setReactInputValue(frameOrPage, selector, value) {
         else input.value = val;
 
         // Trigger full React event chain
-        input.dispatchEvent(new Event('input',  { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: val.slice(-1) }));
-        input.dispatchEvent(new KeyboardEvent('keypress',{ bubbles: true, key: val.slice(-1) }));
-        input.dispatchEvent(new KeyboardEvent('keyup',   { bubbles: true, key: val.slice(-1) }));
-        input.dispatchEvent(new FocusEvent('blur',  { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true, key: val.slice(-1) }));
+        input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: val.slice(-1) }));
+        input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
 
-        return input.value === val || input.value.replace(/\D/g,'') === val.replace(/\D/g,'');
+        return input.value === val || input.value.replace(/\D/g, '') === val.replace(/\D/g, '');
     }, selector, value);
 }
 
@@ -103,7 +132,7 @@ async function setReactSelectValue(frameOrPage, selector, value) {
         if (nativeSetter) nativeSetter.call(select, val);
         else select.value = val;
 
-        select.dispatchEvent(new Event('input',  { bubbles: true }));
+        select.dispatchEvent(new Event('input', { bubbles: true }));
         select.dispatchEvent(new Event('change', { bubbles: true }));
         return select.value === val;
     }, selector, value);
@@ -156,7 +185,7 @@ async function typeLikeUser(page, frameOrPage, selectors, value, label, opts = {
                     return { ok: true, selector };
                 }
             } catch {
-                try { await page.keyboard.up('Control'); } catch {}
+                try { await page.keyboard.up('Control'); } catch { }
             }
         }
     }
@@ -184,9 +213,38 @@ async function selectLikeUser(frameOrPage, selectors, value, label) {
                 });
                 if (!visible) continue;
 
+                // Smart select matching: works for 1 vs 01, 2026 vs 26
+                const selectedVal = await handle.evaluate((el, targetVal) => {
+                    const targetNum = Number(targetVal);
+                    const targetStr = String(targetVal || '').trim();
+                    const opts = Array.from(el.options || []);
+                    const match = opts.find(o => {
+                        const v = String(o.value || '').trim();
+                        const t = String(o.text || '').trim();
+                        if (v === targetStr || t === targetStr) return true;
+                        if (Number.isFinite(targetNum) && Number(v) === targetNum) return true;
+                        if (targetStr.length === 2 && v.slice(-2) === targetStr) return true;
+                        if (targetStr.length === 4 && v === targetStr.slice(-2)) return true;
+                        return false;
+                    });
+                    if (match) {
+                        el.value = match.value;
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                        el.blur();
+                        return match.value;
+                    }
+                    return null;
+                }, expected);
+
+                if (selectedVal) {
+                    console.log(`${label} đã chọn theo kiểu người dùng: ${selector} (${selectedVal})`);
+                    return { ok: true, selector, value: selectedVal };
+                }
+
                 await handle.select(expected);
                 const verified = await handle.evaluate((el, val) => {
-                    const ok = String(el.value) === String(val);
+                    const ok = String(el.value) === String(val) || String(el.value).slice(-2) === String(val).slice(-2);
                     if (ok) {
                         el.dispatchEvent(new Event('input', { bubbles: true }));
                         el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -226,7 +284,7 @@ async function fillCardNumberAcrossFrames(page, cardNumber, selectors, timeoutMs
                         const input = document.querySelector(sel);
                         if (!input) return false;
                         const style = window.getComputedStyle(input);
-                        const rect  = input.getBoundingClientRect();
+                        const rect = input.getBoundingClientRect();
                         if (style.display === 'none' || style.visibility === 'hidden' || !rect.width) return false;
 
                         const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
@@ -236,12 +294,12 @@ async function fillCardNumberAcrossFrames(page, cardNumber, selectors, timeoutMs
 
                         if (nativeSetter) nativeSetter.call(input, val);
                         else input.value = val;
-                        input.dispatchEvent(new Event('input',  { bubbles: true }));
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
                         input.dispatchEvent(new Event('change', { bubbles: true }));
                         input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
                         input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
 
-                        return input.value.replace(/\D/g,'') === val.replace(/\D/g,'');
+                        return input.value.replace(/\D/g, '') === val.replace(/\D/g, '');
                     }, selector, cardNumber);
 
                     if (ok) return { ok: true, mode: `react-frame:${selector}` };
@@ -264,7 +322,7 @@ async function fillCardNumberAcrossFrames(page, cardNumber, selectors, timeoutMs
 
                     const verified = await frame.evaluate((sel, val) => {
                         const el = document.querySelector(sel);
-                        return el?.value?.replace(/\D/g,'') === val.replace(/\D/g,'');
+                        return el?.value?.replace(/\D/g, '') === val.replace(/\D/g, '');
                     }, selector, cardNumber);
 
                     if (verified) return { ok: true, mode: `type-frame:${selector}` };
@@ -278,6 +336,8 @@ async function fillCardNumberAcrossFrames(page, cardNumber, selectors, timeoutMs
 
 async function fillCvvAcrossFrames(page, cvc, timeoutMs = 8000) {
     const cvvSelectors = [
+        'input[data-testid="cvv-text-input"]',
+        '#cvv-input input',
         'input[autocomplete="cc-csc"]',
         'input[name="addCreditCardVerificationNumber"]',
         'input[name*="Verification"]',
@@ -305,7 +365,7 @@ async function fillCvvAcrossFrames(page, cvc, timeoutMs = 8000) {
                         const input = document.querySelector(sel);
                         if (!input) return false;
                         const style = window.getComputedStyle(input);
-                        const rect  = input.getBoundingClientRect();
+                        const rect = input.getBoundingClientRect();
                         if (style.display === 'none' || style.visibility === 'hidden' || !rect.width) return false;
 
                         const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
@@ -315,12 +375,12 @@ async function fillCvvAcrossFrames(page, cvc, timeoutMs = 8000) {
 
                         if (nativeSetter) nativeSetter.call(input, val);
                         else input.value = val;
-                        input.dispatchEvent(new Event('input',  { bubbles: true }));
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
                         input.dispatchEvent(new Event('change', { bubbles: true }));
                         input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
                         input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
 
-                        return input.value.replace(/\D/g,'') === val.replace(/\D/g,'');
+                        return input.value.replace(/\D/g, '') === val.replace(/\D/g, '');
                     }, selector, String(cvc));
 
                     if (ok) return { ok: true, mode: `react:${selector}` };
@@ -341,11 +401,11 @@ async function fillCvvAcrossFrames(page, cvc, timeoutMs = 8000) {
                         const attrs = [el.autocomplete, el.name, el.id, el.getAttribute('aria-label'), el.placeholder, el.className]
                             .join(' ').toLowerCase();
                         let s = 0;
-                        if (attrs.includes('cc-csc'))        s += 120;
+                        if (attrs.includes('cc-csc')) s += 120;
                         if (attrs.includes('security code')) s += 110;
-                        if (attrs.includes('verification'))  s += 100;
-                        if (attrs.includes('cvv'))           s += 100;
-                        if (attrs.includes('cvc'))           s += 100;
+                        if (attrs.includes('verification')) s += 100;
+                        if (attrs.includes('cvv')) s += 100;
+                        if (attrs.includes('cvc')) s += 100;
                         const ml = Number(el.getAttribute('maxlength') || 0);
                         if (ml === 3 || ml === 4) s += 30;
                         return s;
@@ -358,10 +418,10 @@ async function fillCvvAcrossFrames(page, cvc, timeoutMs = 8000) {
                     const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
                     if (nativeSetter) nativeSetter.call(best.el, val);
                     else best.el.value = val;
-                    best.el.dispatchEvent(new Event('input',  { bubbles: true }));
+                    best.el.dispatchEvent(new Event('input', { bubbles: true }));
                     best.el.dispatchEvent(new Event('change', { bubbles: true }));
                     best.el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-                    return best.el.value.replace(/\D/g,'') === val.replace(/\D/g,'') ? { name: best.el.name, score: best.s } : null;
+                    return best.el.value.replace(/\D/g, '') === val.replace(/\D/g, '') ? { name: best.el.name, score: best.s } : null;
                 }, String(cvc));
                 if (result) return { ok: true, mode: 'heuristic' };
             } catch { /* continue */ }
@@ -379,36 +439,59 @@ async function verifyFieldsBeforeSubmit(page) {
     for (const ctx of contexts) {
         try {
             const state = await ctx.evaluate(() => {
-                const q = sel => document.querySelector(sel);
                 const isVisible = (el) => {
                     if (!el || el.disabled || el.readOnly) return false;
                     const s = window.getComputedStyle(el);
                     const r = el.getBoundingClientRect();
                     return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0 && r.height > 0;
                 };
-                const card  = q('input[name="addCreditCardNumber"]');
-                const name  = q('input[name="ppw-accountHolderName"]');
-                const month = q('select[name="ppw-expirationDate_month"]');
-                const year  = q('select[name="ppw-expirationDate_year"]');
+                const q = sel => {
+                    const els = document.querySelectorAll(sel);
+                    return Array.from(els).find(isVisible);
+                };
+
+                const card = q('input[data-testid="card-text-input"]') ||
+                             q('#card-number-input input') ||
+                             q('input[autocomplete="cc-number"]') ||
+                             q('input[name="addCreditCardNumber"]') ||
+                             q('input[name*="cardNumber"]');
+
+                const name = q('input[data-testid="input-text-input"]') ||
+                             q('#account-holder-name-input input') ||
+                             q('input[autocomplete="cc-name"]') ||
+                             q('input[name="ppw-accountHolderName"]');
+
+                const expSingle = q('input[data-testid="date-expiration-text-input"]') ||
+                                  q('#expiration-date-input input') ||
+                                  q('input[autocomplete="cc-exp"]');
+
+                const month = q('select[name="ppw-expirationDate_month"]') || q('select[name*="expirationDate_month"]');
+                const year = q('select[name="ppw-expirationDate_year"]') || q('select[name*="expirationDate_year"]');
+
                 const cvvCandidates = [
-                    q('input[name="addCreditCardVerificationNumber"]'),
+                    q('input[data-testid="cvv-text-input"]'),
+                    q('#cvv-input input'),
                     q('input[autocomplete="cc-csc"]'),
+                    q('input[name="addCreditCardVerificationNumber"]'),
                     q('input[name*="cvv" i]'),
                     q('input[name*="cvc" i]'),
                     q('input[name*="verification" i]')
                 ].filter(Boolean);
                 const cvv = cvvCandidates.find(isVisible) || null;
 
+                const hasMonth = expSingle ? (expSingle.value || '').trim().length >= 4 : !!(month?.value);
+                const hasYear = expSingle ? (expSingle.value || '').trim().length >= 4 : !!(year?.value);
+
                 return {
-                    card:  (card?.value  || '').replace(/\D/g,'').length,
-                    name:  (name?.value  || '').trim().length,
-                    month: (month?.value || ''),
-                    year:  (year?.value  || ''),
-                    cvv:   (cvv?.value   || '').replace(/\D/g,'').length,
+                    card: (card?.value || '').replace(/\D/g, '').length,
+                    name: (name?.value || '').trim().length,
+                    month: hasMonth ? 'OK' : '',
+                    year: hasYear ? 'OK' : '',
+                    cvv: (cvv?.value || '').replace(/\D/g, '').length,
                     cvvPresent: !!cvv,
                 };
             });
-            if (state.card > 10) return state; // found the right frame
+            if (state.card >= 12) return state; // found filled form in context
         } catch { /* try next frame */ }
     }
     return { card: 0, name: 0, month: '', year: '', cvv: 0, cvvPresent: false };
@@ -416,6 +499,8 @@ async function verifyFieldsBeforeSubmit(page) {
 
 async function hasVisibleCvvField(page) {
     const selectors = [
+        'input[data-testid="cvv-text-input"]',
+        '#cvv-input input',
         'input[autocomplete="cc-csc"]',
         'input[name="addCreditCardVerificationNumber"]',
         'input[name*="Verification"]',
@@ -429,7 +514,7 @@ async function hasVisibleCvvField(page) {
         'input[placeholder*="security code" i]',
     ];
 
-    for (const frame of page.frames()) {
+    for (const frame of [page, ...page.frames()]) {
         try {
             const found = await frame.evaluate((sels) => {
                 const isVisible = (el) => {
@@ -464,32 +549,94 @@ async function clickAddressConfirmationIfPresent(page) {
                     const r = el.getBoundingClientRect();
                     return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0;
                 };
-                for (const el of document.querySelectorAll('input[type="submit"], button, a, .a-button-input')) {
+
+                // 1. Direct query for SelectAddressEvent & pmts-use-selected-address elements
+                const selectAddressSelectors = [
+                    'input[name="ppw-widgetEvent:SelectAddressEvent"]',
+                    'input[name*="SelectAddressEvent"]',
+                    '.pmts-use-selected-address input',
+                    '.pmts-use-selected-address button',
+                    '.pmts-use-selected-address',
+                    'span.pmts-use-selected-address input[type="submit"]',
+                    '#apx-add-address-button-id ~ span.pmts-use-selected-address input'
+                ];
+
+                for (const sel of selectAddressSelectors) {
+                    const elements = [...document.querySelectorAll(sel)].filter(isVisible);
+                    for (const el of elements) {
+                        const radio = document.querySelector('input[name="ppw-addressSelection"]');
+                        if (radio && !radio.checked) {
+                            try { radio.click(); } catch (_) { }
+                        }
+
+                        const clickable = el.closest('.a-button') || el.closest('span.a-button-inner') || el;
+                        try {
+                            clickable.click();
+                            return `SelectAddressEvent (${sel})`;
+                        } catch (_) {
+                            try {
+                                el.click();
+                                return `SelectAddressEvent:direct (${sel})`;
+                            } catch (_) { }
+                        }
+                    }
+                }
+
+                // 2. Comprehensive check for buttons matching address selection text/metadata
+                for (const el of document.querySelectorAll('input[type="submit"], button, a, .a-button-input, span.a-button')) {
                     if (!isVisible(el)) continue;
+
+                    const ariaLabelledBy = el.getAttribute('aria-labelledby')
+                        ? (document.getElementById(el.getAttribute('aria-labelledby'))?.textContent || '')
+                        : '';
+                    const parentText = el.parentElement ? (el.parentElement.textContent || '') : '';
+                    const grandParentText = el.parentElement?.parentElement ? (el.parentElement.parentElement.textContent || '') : '';
+                    const containerClass = [
+                        el.className || '',
+                        el.parentElement?.className || '',
+                        el.parentElement?.parentElement?.className || '',
+                        el.closest('.a-button')?.className || '',
+                        el.closest('[class*="address"]')?.className || ''
+                    ].join(' ');
+
                     const meta = [
                         el.value || '',
                         el.textContent || '',
                         el.getAttribute('aria-label') || '',
                         el.name || '',
                         el.id || '',
-                        el.className || '',
-                        el.closest('[class]')?.className || ''
+                        containerClass,
+                        ariaLabelledBy,
+                        parentText,
+                        grandParentText
                     ].join(' ').toLowerCase();
+
                     const isAddressAction =
+                        meta.includes('selectaddressevent') ||
                         meta.includes('use this address') ||
                         meta.includes('ship to this address') ||
                         meta.includes('selected-address') ||
                         meta.includes('use-selected-address') ||
-                        meta.includes('pmts-use-selected-address');
+                        meta.includes('pmts-use-selected-address') ||
+                        meta.includes('この住所を使用') ||
+                        meta.includes('この住所を使う');
+
                     if (isAddressAction) {
-                        el.click();
-                        return meta.slice(0, 80);
+                        const clickable = el.closest('.a-button') || el.closest('span.a-button-inner') || el;
+                        try {
+                            clickable.click();
+                            return meta.slice(0, 80);
+                        } catch (_) {
+                            el.click();
+                            return meta.slice(0, 80);
+                        }
                     }
                 }
                 return null;
             });
         } catch { return null; }
     };
+
     const top = await tryCtx(page);
     if (top) return top;
     for (const frame of page.frames()) {
@@ -497,6 +644,57 @@ async function clickAddressConfirmationIfPresent(page) {
         if (r) return r;
     }
     return null;
+}
+
+async function handleEmbeddedBillingAddressForm(page, cardInfo = null, waitMs = 10000) {
+    const path = require('path');
+    const addressApi = require(path.join(__dirname, 'addAddress.js'));
+    const start = Date.now();
+
+    while (Date.now() - start < waitMs) {
+        // 1. Search for explicit iframe#billingAddressEmbeddedView or src containing manage-address
+        for (const frame of page.frames()) {
+            try {
+                const iframeEl = await frame.$('#billingAddressEmbeddedView') ||
+                                 await frame.$('iframe[src*="manage-address"]') ||
+                                 await frame.$('iframe[id*="billingAddress"]');
+                if (iframeEl) {
+                    const embeddedFrame = await iframeEl.contentFrame();
+                    if (embeddedFrame) {
+                        const hasFormContainer = await embeddedFrame.$('#address-ui-widgets-enterAddressFormContainer') ||
+                                                 await embeddedFrame.$('form[action*="manage-address"]') ||
+                                                 await embeddedFrame.$('input[name="ppw-widgetEvent:AddAddressEvent"]') ||
+                                                 await embeddedFrame.$('#address-ui-widgets-enterAddressFullName') ||
+                                                 await embeddedFrame.$('input[name="address-ui-widgets-enterAddressFullName"]');
+                        if (hasFormContainer) {
+                            console.log('   Phát hiện iframe#billingAddressEmbeddedView, đang tự động điền địa chỉ...');
+                            await addressApi.addAddress(embeddedFrame, { name: cardInfo?.name, apiRetries: 1 });
+                            return true;
+                        }
+                    }
+                }
+            } catch { }
+        }
+
+        // 2. Search across all frames and page context directly
+        const contexts = [page, ...page.frames()];
+        for (const ctx of contexts) {
+            try {
+                const hasFormContainer = await ctx.$('#address-ui-widgets-enterAddressFormContainer') ||
+                                         await ctx.$('form[action*="manage-address"]') ||
+                                         await ctx.$('input[name="ppw-widgetEvent:AddAddressEvent"]') ||
+                                         await ctx.$('#address-ui-widgets-enterAddressFullName') ||
+                                         await ctx.$('input[name="address-ui-widgets-enterAddressFullName"]');
+                if (hasFormContainer) {
+                    console.log('   Phát hiện form Địa chỉ Billing trong context, đang tự động điền...');
+                    await addressApi.addAddress(ctx, { name: cardInfo?.name, apiRetries: 1 });
+                    return true;
+                }
+            } catch { }
+        }
+        await new Promise(r => setTimeout(r, 400));
+    }
+    return false;
 }
 
 async function inspectCardSubmitState(page, last4) {
@@ -513,10 +711,10 @@ async function inspectCardSubmitState(page, last4) {
                     '.a-alert-error', '.a-form-error', '.pmts-error',
                     '[class*="error"] .a-alert-content', '[data-testid*="error"]'
                 ].map(sel => [...document.querySelectorAll(sel)].map(vis).filter(Boolean).join(' '))
-                 .filter(Boolean).join(' ').trim();
+                    .filter(Boolean).join(' ').trim();
 
-                const problemToken = ['there was a problem','invalid','declined','not accepted',
-                    'please enter','please correct','expired','unable to add','cannot add']
+                const problemToken = ['there was a problem', 'invalid', 'declined', 'not accepted',
+                    'please enter', 'please correct', 'expired', 'unable to add', 'cannot add']
                     .find(t => body.includes(t));
 
                 const formVisible = !![
@@ -534,8 +732,8 @@ async function inspectCardSubmitState(page, last4) {
                     formVisible,
                     last4Visible: !!cardLast4 && (document.body.textContent || '').includes(cardLast4),
                     successTextVisible: body.includes('payment method has been added') ||
-                                        body.includes('card has been added') ||
-                                        body.includes('successfully added'),
+                        body.includes('card has been added') ||
+                        body.includes('successfully added'),
                 };
             }, last4);
         } catch { return null; }
@@ -543,20 +741,40 @@ async function inspectCardSubmitState(page, last4) {
 
     const states = (await Promise.all([page, ...page.frames()].map(tryCtx))).filter(Boolean);
     return {
-        errorText:          states.map(s => s.errorText).find(Boolean) || '',
-        formVisible:        states.some(s => s.formVisible),
-        last4Visible:       states.some(s => s.last4Visible),
+        errorText: states.map(s => s.errorText).find(Boolean) || '',
+        formVisible: states.some(s => s.formVisible),
+        last4Visible: states.some(s => s.last4Visible),
         successTextVisible: states.some(s => s.successTextVisible),
     };
 }
 
-async function waitForCardSubmitResult(page, last4, timeoutMs = 18000) {
+async function waitForCardSubmitResult(page, last4, timeoutMs = 18000, cardInfo = null) {
     const started = Date.now();
     let addressClicked = false;
 
     while (Date.now() - started < timeoutMs) {
-        // ✅ FIX: Detect wallet URL redirect = card added successfully
         const currentUrl = page.url();
+
+        // ✅ Check 1: Redirected to homepage or away from payment wallet
+        if (
+            currentUrl === 'https://www.amazon.co.jp/' ||
+            currentUrl === 'https://www.amazon.co.jp' ||
+            currentUrl.startsWith('https://www.amazon.co.jp/?') ||
+            currentUrl.includes('/ref=') ||
+            currentUrl.includes('/gp/css/homepage')
+        ) {
+            console.log(`Phát hiện bị điều hướng về trang chủ (${currentUrl}), tự động chuyển về trang wallet để kiểm tra thẻ ***${last4}...`);
+            try {
+                await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', {
+                    waitUntil: 'domcontentloaded', timeout: 15000
+                });
+                await new Promise(r => setTimeout(r, 2000));
+            } catch (err) {
+                console.log(`Lỗi khi chuyển về trang wallet: ${err.message}`);
+            }
+        }
+
+        // ✅ Check 2: Detect wallet URL redirect = card added successfully
         if (
             currentUrl.includes('/cpe/yourpayments/wallet') ||
             currentUrl.includes('/cpe/managePayment')
@@ -579,8 +797,15 @@ async function waitForCardSubmitResult(page, last4, timeoutMs = 18000) {
         const clicked = await clickAddressConfirmationIfPresent(page);
         if (clicked && !addressClicked) {
             addressClicked = true;
-            console.log(`   Đã bấm xác nhận địa chỉ: ${clicked}`);
+            console.log(`   Đã bấm xác nhận địa chỉ ('Use this address'): ${clicked}`);
             await new Promise(r => setTimeout(r, 1500));
+        } else if (!addressClicked) {
+            const handledAddr = await handleEmbeddedBillingAddressForm(page, cardInfo, 2000);
+            if (handledAddr) {
+                addressClicked = true;
+                console.log('   Đã điền và submit form địa chỉ Billing thành công!');
+                await new Promise(r => setTimeout(r, 2000));
+            }
         }
 
         const state = await inspectCardSubmitState(page, last4);
@@ -599,7 +824,7 @@ async function waitForCardSubmitResult(page, last4, timeoutMs = 18000) {
     // Timeout — do one final wallet check
     console.log(`Timeout khi chờ thẻ ***${last4} - chuyển sang kiểm tra ví...`);
     try {
-        await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
+        await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', {
             waitUntil: 'domcontentloaded', timeout: 8000
         });
         await new Promise(r => setTimeout(r, 2500));
@@ -624,10 +849,10 @@ async function clickFilledPaymentFormSubmit(page, cardInfo) {
     console.log(`Kiểm tra field trước khi submit: ${JSON.stringify(preCheck)}`);
 
     const missing = [];
-    if (preCheck.card < 13)  missing.push('card');
-    if (preCheck.name < 2)   missing.push('name');
-    if (!preCheck.month)     missing.push('month');
-    if (!preCheck.year)      missing.push('year');
+    if (preCheck.card < 13) missing.push('card');
+    if (preCheck.name < 2) missing.push('name');
+    if (!preCheck.month) missing.push('month');
+    if (!preCheck.year) missing.push('year');
     if (cardInfo.cvc && preCheck.cvvPresent && preCheck.cvv < 3) missing.push('cvv');
 
     if (missing.length > 0) {
@@ -646,35 +871,50 @@ async function clickFilledPaymentFormSubmit(page, cardInfo) {
                     return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0;
                 };
 
-                const anchor = document.querySelector('input[name="addCreditCardNumber"]') ||
-                               document.querySelector('input[name="ppw-accountHolderName"]');
-                const form   = anchor?.closest('form') ||
-                               document.querySelector('form.apx-add-card-compact-form') ||
-                               document;
+                const isCancelOrClose = el => {
+                    const meta = `${el.getAttribute('aria-label') || ''} ${el.value || ''} ${el.textContent || ''} ${el.className || ''} ${el.id || ''}`.toLowerCase();
+                    return meta.includes('close') || meta.includes('cancel') || meta.includes('閉じる') || meta.includes('キャンセル') || meta.includes('back');
+                };
 
-                const candidates = [...form.querySelectorAll(
-                    'input[name="ppw-widgetEvent:AddCreditCardEvent"], input[type="submit"], ' +
-                    'button[type="submit"], .a-button-primary input.a-button-input, .a-button-input'
-                )].filter(isVisible);
+                const candidates = [...document.querySelectorAll(
+                    'button[aria-label="Add and continue"], button[aria-label*="Add and continue" i], ' +
+                    '[data-testid="button"] button, input[name="ppw-widgetEvent:AddCreditCardEvent"], ' +
+                    'input[type="submit"], button[type="submit"], button[type="button"], .a-button-primary input.a-button-input'
+                )].filter(isVisible).filter(el => !isCancelOrClose(el));
 
                 const submit = candidates.find(el => {
-                    const label = `${el.value||''} ${el.textContent||''} ${el.getAttribute('aria-label')||''}`.toLowerCase();
-                    return label.includes('add') || label.includes('continue') || label.includes('confirm') ||
-                           el.name === 'ppw-widgetEvent:AddCreditCardEvent';
-                }) || candidates[0];
+                    const label = `${el.getAttribute('aria-label') || ''} ${el.value || ''} ${el.textContent || ''}`.toLowerCase();
+                    return label.includes('add and continue') ||
+                        label.includes('add credit card') ||
+                        label.includes('add card') ||
+                        label.includes('カードを追加') ||
+                        label.includes('追加して次へ') ||
+                        el.name === 'ppw-widgetEvent:AddCreditCardEvent';
+                }) || candidates.find(el => {
+                    const label = `${el.getAttribute('aria-label') || ''} ${el.value || ''} ${el.textContent || ''}`.toLowerCase();
+                    return label.includes('add') || label.includes('continue') || label.includes('confirm') || label.includes('追加');
+                });
 
                 if (!submit) return { clicked: false };
 
-                const submitSelector = submit.name ? `${submit.tagName.toLowerCase()}[name="${submit.name}"]`
-                                     : submit.id   ? `#${submit.id}` : '';
-                return { clicked: true, submitSelector };
+                try {
+                    submit.click();
+                    return { clicked: true };
+                } catch (_) {
+                    const submitSelector = submit.name ? `${submit.tagName.toLowerCase()}[name="${submit.name}"]`
+                        : submit.id ? `#${submit.id}` : '';
+                    return { clicked: false, submitSelector };
+                }
             }, cardInfo);
 
-            if (result?.clicked && result.submitSelector) {
+            if (result?.clicked) {
+                console.log(`Đã bấm submit form thanh toán - field OK: ${JSON.stringify(preCheck)}`);
+                return true;
+            } else if (result?.submitSelector) {
                 const handle = await ctx.$(result.submitSelector);
                 if (handle) {
                     await handle.click();
-                    console.log(`Đã bấm submit form thanh toán - field OK: ${JSON.stringify(preCheck)}`);
+                    console.log(`Đã bấm submit form thanh toán bằng handle - field OK: ${JSON.stringify(preCheck)}`);
                     return true;
                 }
             }
@@ -704,7 +944,7 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
             console.log('Đang đảm bảo đã ở trang thanh toán...');
             const url = page.url();
             if (!url.includes('yourpayments') || !url.includes('wallet')) {
-                await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
+                await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', {
                     waitUntil: 'domcontentloaded', timeout: 30000
                 });
                 await new Promise(r => setTimeout(r, 3000));
@@ -714,45 +954,94 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
             return { success: false, error: 'NAVIGATION_ERROR', shouldRetry: true };
         }
 
-        // ── Step 1: Click "Add a payment method" ───────────────────────
+        // ── Step 1: Click "Add a payment method" or "Add new" ──────────────
         try {
             console.log('Bước 1: bấm Add Payment Method...');
             let clicked = false;
 
+            // Check if card form is already open
+            if (await isCardFormVisible(page)) {
+                console.log('   Form/Popup/Sleeve nhập thẻ đã mở sẵn, bỏ qua Bước 1 & 2');
+                clicked = true;
+            }
+
             for (let attempt = 1; attempt <= 5 && !clicked; attempt++) {
                 console.log(`   Attempt ${attempt}/5`);
 
-                try {
-                    await puppeteer.Locator.race([
-                        page.locator('::-p-aria(Add a payment method[role="link"])'),
-                        page.locator('#pp-paEOaP-10'),
-                    ]).setTimeout(8000).click();
-                    clicked = true;
-                    console.log('   Locator race đã hoạt động');
-                } catch { /* try next */ }
+                // Check across all frames / page for trigger elements
+                for (const ctx of [page, ...page.frames()]) {
+                    try {
+                        clicked = await ctx.evaluate(() => {
+                            const isVisible = el => {
+                                if (!el) return false;
+                                const s = window.getComputedStyle(el);
+                                const r = el.getBoundingClientRect();
+                                return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0 && r.height > 0;
+                            };
+
+                            const spans = [...document.querySelectorAll('[data-testid="text"], span, a, button, [role="button"]')].filter(isVisible);
+                            const addNew = spans.find(el => {
+                                const t = (el.textContent || '').trim().toLowerCase();
+                                return t === 'add new' || t === 'add a payment method' || t.includes('お支払い方法を追加') || t.includes('支払い方法を追加') || t === 'お支払い方法の追加';
+                            });
+                            if (addNew) {
+                                const clickable = addNew.closest('a, button, [role="button"]') || addNew;
+                                clickable.click();
+                                return true;
+                            }
+                            return false;
+                        });
+                        if (clicked) break;
+                    } catch { }
+                }
+
+                if (!clicked) {
+                    try {
+                        await puppeteer.Locator.race([
+                            page.locator('::-p-aria(Add a payment method[role="link"])'),
+                            page.locator('#pp-paEOaP-10'),
+                        ]).setTimeout(4000).click();
+                        clicked = true;
+                        console.log('   Locator race đã hoạt động');
+                    } catch { /* try next */ }
+                }
 
                 if (!clicked) {
                     try {
                         const btn = await page.waitForSelector(
-                            'a[href*="payment"], #pp-paEOaP-10, [data-testid*="add-payment"]',
-                            { timeout: 5000 }
+                            '#pp-paEOaP-10, [data-testid*="add-payment"]',
+                            { timeout: 3000 }
                         );
                         if (btn) { await btn.click(); clicked = true; }
                     } catch { /* try next */ }
                 }
 
                 if (!clicked) {
-                    clicked = await page.evaluate(() => {
-                        for (const el of [...document.querySelectorAll('a, button')]) {
-                            const t = el.textContent.toLowerCase();
-                            if (t.includes('add') && t.includes('payment')) { el.click(); return true; }
-                        }
-                        return false;
-                    });
+                    for (const ctx of [page, ...page.frames()]) {
+                        try {
+                            clicked = await ctx.evaluate(() => {
+                                for (const el of [...document.querySelectorAll('a, button, [role="button"], input[type="submit"]')]) {
+                                    const t = (el.textContent || el.value || '').toLowerCase();
+                                    const href = (el.getAttribute('href') || '').toLowerCase();
+                                    if (href.includes('browse.html') || href.includes('adsystem') || href.includes('amazon-ad')) continue;
+                                    if ((t.includes('add') && (t.includes('payment') || t.includes('new'))) || t.includes('お支払い方法を追加')) {
+                                        el.click(); return true;
+                                    }
+                                }
+                                return false;
+                            });
+                            if (clicked) break;
+                        } catch { }
+                    }
+                }
+
+                if (await isCardFormVisible(page)) {
+                    console.log('   Form/Popup/Sleeve nhập thẻ đã xuất hiện sau khi bấm!');
+                    clicked = true;
                 }
 
                 if (!clicked) {
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(r => setTimeout(r, 1500));
                     if (attempt === 3) {
                         await page.reload({ waitUntil: 'domcontentloaded', timeout: 5000 });
                         await new Promise(r => setTimeout(r, 3000));
@@ -766,76 +1055,131 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
             return { success: false, error: err.message, step: 'add_payment_method', shouldRetry: true };
         }
 
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1500));
+
+        // ── Guard check: Did page navigate away to ad / promo page? ─────────
+        if (!page.url().includes('yourpayments') && !page.url().includes('wallet')) {
+            console.log(`Phát hiện bị điều hướng khỏi trang wallet (${page.url()}), quay lại wallet...`);
+            await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', { waitUntil: 'domcontentloaded', timeout: 20000 });
+            await new Promise(r => setTimeout(r, 2000));
+        }
 
         // ── Step 2: Select "Add a credit or debit card" ────────────────
         try {
             console.log('Bước 2: chọn Credit/Debit Card...');
             let clicked = false;
 
-            for (let attempt = 1; attempt <= 4 && !clicked; attempt++) {
-                console.log(`   Attempt ${attempt}/4`);
+            // Check if card form is already open
+            if (await isCardFormVisible(page)) {
+                console.log('   Form/Popup/Sleeve nhập thẻ đã hiển thị, bỏ qua Bước 2');
+                clicked = true;
+            }
 
-                clicked = await page.evaluate(() => {
-                    const byTestId = document.querySelector('#apx-add-credit-card-action-test-id input.a-button-input[type="submit"]');
-                    if (byTestId) { byTestId.click(); return true; }
-                    for (const row of document.querySelectorAll('div[data-pmts-component-id]')) {
-                        if (!(row.textContent || '').toLowerCase().includes('add a credit or debit card')) continue;
-                        const inp = row.querySelector('input.a-button-input[type="submit"]');
-                        if (inp) { inp.click(); return true; }
-                    }
-                    return false;
-                });
+            for (let attempt = 1; attempt <= 5 && !clicked; attempt++) {
+                console.log(`   Attempt ${attempt}/5`);
+
+                for (const ctx of [page, ...page.frames()]) {
+                    try {
+                        clicked = await ctx.evaluate(() => {
+                            const isVisible = el => {
+                                if (!el) return false;
+                                const s = window.getComputedStyle(el);
+                                const r = el.getBoundingClientRect();
+                                return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0 && r.height > 0;
+                            };
+
+                            const sleeveCard = document.querySelector('a[data-testid="creatable-sleeve-Card"]') ||
+                                               document.querySelector('[data-testid="creatable-sleeve-Card-content-wrapper"]') ||
+                                               document.querySelector('[data-testid="creatable-sleeve-Card"]');
+                            if (sleeveCard && isVisible(sleeveCard)) {
+                                const clickable = sleeveCard.closest('a, button, [role="button"]') || sleeveCard;
+                                try { clickable.click(); } catch (_) { sleeveCard.click(); }
+                                return true;
+                            }
+
+                            const byTestId = document.querySelector('#apx-add-credit-card-action-test-id input.a-button-input[type="submit"]');
+                            if (byTestId && isVisible(byTestId)) { byTestId.click(); return true; }
+
+                            const clickables = [
+                                ...document.querySelectorAll(
+                                    'input.a-button-input[type="submit"], button, a, [role="button"], ' +
+                                    '.a-popover input, .a-popover button, .a-popover a, ' +
+                                    '[role="dialog"] input, [role="dialog"] button, [role="dialog"] a, ' +
+                                    'div[data-pmts-component-id], div[data-testid]'
+                                )
+                            ].filter(isVisible);
+
+                            for (const el of clickables) {
+                                const text = `${el.textContent || ''} ${el.value || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase();
+                                const href = (el.getAttribute('href') || '').toLowerCase();
+                                if (href.includes('browse.html') || href.includes('adsystem') || href.includes('amazon-ad') || href.includes('/gp/browse')) continue;
+
+                                const isCardOption =
+                                    text.includes('add a credit or debit card') ||
+                                    text.includes('add a credit card') ||
+                                    text.includes('credit or debit card') ||
+                                    text.includes('credit card') ||
+                                    text.includes('debit card') ||
+                                    text.includes('クレジットカード') ||
+                                    text.includes('デビットカード') ||
+                                    text.includes('カードを追加');
+
+                                if (isCardOption) {
+                                    const clickable = el.closest('a, button, [role="button"], input.a-button-input') || el;
+                                    clickable.click();
+                                    return true;
+                                }
+                            }
+
+                            return false;
+                        });
+                        if (clicked) break;
+                    } catch { }
+                }
+
                 console.log(clicked ? '   Đã bấm nút thêm thẻ' : '   Không tìm thấy, thử lại...');
 
-                if (!clicked) await new Promise(r => setTimeout(r, 800));
+                if (await isCardFormVisible(page)) {
+                    console.log('   Form/Popup/Sleeve nhập thẻ đã xuất hiện!');
+                    clicked = true;
+                }
+
+                if (!clicked) await new Promise(r => setTimeout(r, 1000));
             }
 
             if (!clicked) throw new Error('FAILED_CLICK_ADD_CREDIT_CARD_BUTTON');
 
-            // ✅ FIX: Wait for iframe to fully load before proceeding
-            try {
-                await page.waitForSelector(
-                    'iframe.apx-secure-iframe.pmts-portal-component, iframe[src*="payments"]',
-                    { timeout: 5000 }
-                );
-                console.log('   Đã phát hiện secure iframe');
-            } catch { /* iframe may not appear on popup flow */ }
-
-            // Extra wait for iframe content to render
-            await new Promise(r => setTimeout(r, 3000));
+            await new Promise(r => setTimeout(r, 300));
             console.log('Bước 2 hoàn tất');
         } catch (err) {
             return { success: false, error: err.message, step: 'add_credit_card', shouldRetry: true };
         }
 
-        await new Promise(r => setTimeout(r, 3000));
+        // ── Guard check: Did page navigate away after Step 2? ─────────
+        if (!page.url().includes('yourpayments') && !page.url().includes('wallet')) {
+            console.log(`Phát hiện bị điều hướng khỏi trang wallet sau Bước 2 (${page.url()}), quay lại wallet...`);
+            await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', { waitUntil: 'domcontentloaded', timeout: 20000 });
+            await new Promise(r => setTimeout(r, 2000));
+        }
 
-        // Detect if Amazon shows a popup form (no secure iframe)
         let usePopupForm = false;
         try {
-            const popupInput = await page.$('input[name="addCreditCardNumber"]');
-            if (popupInput) {
-                usePopupForm = await page.evaluate(el => {
-                    const s = window.getComputedStyle(el);
-                    const r = el.getBoundingClientRect();
-                    return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0;
-                }, popupInput);
-            }
+            usePopupForm = await isCardFormVisible(page);
         } catch { /* ignore */ }
 
         const targetPage = page;
         targetPage.setDefaultTimeout(timeout);
+        let workingFrame = null;
 
-        // Helper: get the working iframe (or page for popup flow)
         const getIframe = async () => {
+            if (workingFrame) return workingFrame;
             if (usePopupForm) return targetPage;
             const valid = await isIframeValid(targetPage, 'iframe.apx-secure-iframe.pmts-portal-component');
-            if (!valid) throw new Error('IFRAME_INVALID');
+            if (!valid) return targetPage;
             const el = await targetPage.$('iframe.apx-secure-iframe.pmts-portal-component');
-            if (!el) throw new Error('IFRAME_NOT_FOUND');
+            if (!el) return targetPage;
             const frame = await el.contentFrame();
-            if (!frame) throw new Error('IFRAME_CONTENT_FRAME_NULL');
+            if (!frame) return targetPage;
             return frame;
         };
 
@@ -843,6 +1187,8 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
         try {
             console.log('Bước 3: nhập số thẻ...');
             const numberSelectors = [
+                'input[data-testid="card-text-input"]',
+                '#card-number-input input',
                 'input[autocomplete="cc-number"]',
                 'input[name="addCreditCardNumber"]',
                 'input[name*="cardNumber"]',
@@ -855,16 +1201,17 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
 
             // ✅ FIX: Wait until card field actually appears in any frame before filling
             console.log('   Đang chờ field số thẻ xuất hiện...');
-            const fieldFound = await findFrameWithSelector(targetPage, numberSelectors, 5000);
+            const fieldFound = await findFrameWithSelector(targetPage, numberSelectors, 15000);
             if (!fieldFound) {
                 // Log available frames for debugging
                 const frameUrls = page.frames().map(f => f.url()).filter(u => u && u !== 'about:blank');
                 console.log(`   Không tìm thấy field số thẻ. Frames: ${frameUrls.map(u => u.slice(0, 80)).join(' | ')}`);
                 throw new Error('CARD_NUMBER_FIELD_NOT_FOUND');
             }
+            workingFrame = fieldFound.frame;
             console.log(`   Field số thẻ nằm trong frame: ${fieldFound.selector}`);
 
-            const fill = await fillCardNumberAcrossFrames(targetPage, cardInfo.number, numberSelectors, 6000);
+            const fill = await fillCardNumberAcrossFrames(targetPage, cardInfo.number, numberSelectors, 15000);
             if (!fill.ok) throw new Error('CARD_NUMBER_FIELD_NOT_FOUND');
             console.log(`Đã nhập số thẻ: ${fill.mode}`);
         } catch (err) {
@@ -882,8 +1229,10 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
 
             // ✅ FIX 1: Use React-aware setter
             const nameSelectors = [
-                'input[name="ppw-accountHolderName"]',
+                'input[data-testid="input-text-input"]',
+                '#account-holder-name-input input',
                 'input[autocomplete="cc-name"]',
+                'input[name="ppw-accountHolderName"]',
                 'input[aria-label*="name" i]',
             ];
             let filled = false;
@@ -925,42 +1274,88 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
 
         await new Promise(r => setTimeout(r, 800));
 
-        // ── Step 5: Expiry month ───────────────────────────────────────
+        // ── Step 5 & 6: Expiry Date (Single MM/YY input or Month/Year Selects) ────────
         try {
-            console.log('Bước 5: chọn tháng hết hạn...');
+            console.log('Bước 5: nhập hạn sử dụng thẻ...');
             const ctx = await getIframe();
-            const monthVal = String(Number(cardInfo.month));
-            const monthSels = [
-                'select[name="ppw-expirationDate_month"]',
-                'select[name*="expirationDate_month"]',
-                'select[aria-label*="month" i]',
+
+            // Check if form has a single expiration date text input (e.g. data-testid="date-expiration-text-input")
+            const singleExpSelectors = [
+                'input[data-testid="date-expiration-text-input"]',
+                '#expiration-date-input input',
+                'input[autocomplete="cc-exp"]',
+                'input[aria-label*="expiration" i]',
+                'input[placeholder*="expiration" i]'
             ];
-            let selected = false;
-            for (const sel of monthSels) {
+
+            const mm = String(cardInfo.month).padStart(2, '0');
+            const yy = String(cardInfo.year).slice(-2);
+            const digitsVal = `${mm}${yy}`;
+            const expVal = `${mm}/${yy}`;
+
+            let expSingleFilled = false;
+
+            // Strategy A: type raw digits (0126) with digitsOnly true (masked input auto-formats to 01/26)
+            for (const sel of singleExpSelectors) {
                 try {
-                    // Uncheck "update everywhere" checkbox if present
-                    const cb = await ctx.$('.a-checkbox.pmts-update-everywhere-checkbox input');
-                    if (cb) {
-                        const checked = await ctx.evaluate(el => el.checked, cb);
-                        if (checked) await cb.click();
-                    }
-                    // ✅ FIX 1: React-aware select
-                    await selectLikeUser(ctx, [sel], monthVal, 'Expiration month');
-                    selected = true;
-                    console.log(`Tháng đã chọn theo kiểu người dùng: ${sel}`);
+                    await typeLikeUser(targetPage, ctx, [sel], digitsVal, 'Expiration date (MM/YY)', { digitsOnly: true });
+                    expSingleFilled = true;
+                    console.log(`Hạn dùng (MM/YY) đã nhập theo kiểu người dùng (digits): ${sel}`);
                     break;
-                    if (ok) { selected = true; console.log(`Đã chọn tháng: ${sel}`); break; }
                 } catch { /* try next */ }
             }
-            if (!selected) {
-                for (const sel of monthSels) {
+
+            // Strategy B: type formatted string (01/26)
+            if (!expSingleFilled) {
+                for (const sel of singleExpSelectors) {
                     try {
-                        const ok = await setReactSelectValue(ctx, sel, monthVal);
-                        if (ok) { selected = true; console.log(`Đã chọn tháng bằng setter: ${sel}`); break; }
+                        await typeLikeUser(targetPage, ctx, [sel], expVal, 'Expiration date (MM/YY)');
+                        expSingleFilled = true;
+                        console.log(`Hạn dùng (MM/YY) đã nhập theo kiểu người dùng: ${sel}`);
+                        break;
                     } catch { /* try next */ }
                 }
             }
-            if (!selected) throw new Error('MONTH_NOT_SELECTED');
+
+            // Strategy C: React-aware setter with slash
+            if (!expSingleFilled) {
+                for (const sel of singleExpSelectors) {
+                    try {
+                        const ok = await setReactInputValue(ctx, sel, expVal);
+                        if (ok) { expSingleFilled = true; console.log(`Hạn dùng (MM/YY) đã nhập bằng setter: ${sel}`); break; }
+                    } catch { /* try next */ }
+                }
+            }
+
+            // Strategy D: React-aware setter with digits
+            if (!expSingleFilled) {
+                for (const sel of singleExpSelectors) {
+                    try {
+                        const ok = await setReactInputValue(ctx, sel, digitsVal);
+                        if (ok) { expSingleFilled = true; console.log(`Hạn dùng (MM/YY) đã nhập bằng setter (digits): ${sel}`); break; }
+                    } catch { /* try next */ }
+                }
+            }
+
+            if (!expSingleFilled) {
+                // Legacy Month / Year selects
+                console.log('Không thấy ô hạn dùng MM/YY, thử chọn Month/Year select...');
+                const monthVal = String(cardInfo.month).trim();
+                const monthSels = [
+                    'select[name="ppw-expirationDate_month"]',
+                    'select[name*="expirationDate_month"]',
+                    'select[aria-label*="month" i]',
+                ];
+                let monthSelected = false;
+                for (const sel of monthSels) {
+                    try {
+                        await selectLikeUser(ctx, [sel], monthVal, 'Expiration month');
+                        monthSelected = true;
+                        break;
+                    } catch { /* try next */ }
+                }
+                if (!monthSelected) throw new Error('MONTH_NOT_SELECTED');
+            }
         } catch (err) {
             if (err.message.includes('detached') || err.message === 'IFRAME_INVALID')
                 return { success: false, error: 'FRAME_DETACHED', step: 'select_month' };
@@ -973,7 +1368,7 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
         try {
             console.log('Bước 6: chọn năm hết hạn...');
             const ctx = await getIframe();
-            const yearVal = String(cardInfo.year);
+            const yearVal = String(cardInfo.year).trim();
             const yearSels = [
                 'select[name="ppw-expirationDate_year"]',
                 'select[name*="expirationDate_year"]',
@@ -988,7 +1383,6 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
                     selected = true;
                     console.log(`Năm đã chọn theo kiểu người dùng: ${sel}`);
                     break;
-                    if (ok) { selected = true; console.log(`Đã chọn năm (native): ${sel}`); break; }
                 } catch { /* try next */ }
             }
 
@@ -1008,7 +1402,7 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
                     await new Promise(r => setTimeout(r, 1500));
                     selected = await ctx.evaluate(target => {
                         const links = [...document.querySelectorAll('.a-popover[aria-hidden="false"] a')];
-                        const link  = links.find(l => l.textContent.trim() === target);
+                        const link = links.find(l => l.textContent.trim() === target);
                         if (link) { link.click(); return true; }
                         return false;
                     }, yearVal);
@@ -1069,13 +1463,13 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
 
                 // Refill text fields with real keyboard events first.
                 await typeLikeUser(targetPage, ctx, ['input[name="addCreditCardNumber"]'], cardInfo.number, 'Card number', { digitsOnly: true })
-                    .catch(() => setReactInputValue(ctx, 'input[name="addCreditCardNumber"]', cardInfo.number).catch(() => {}));
+                    .catch(() => setReactInputValue(ctx, 'input[name="addCreditCardNumber"]', cardInfo.number).catch(() => { }));
                 await typeLikeUser(targetPage, ctx, ['input[name="ppw-accountHolderName"]'], cardInfo.name, 'Cardholder name')
-                    .catch(() => setReactInputValue(ctx, 'input[name="ppw-accountHolderName"]', cardInfo.name).catch(() => {}));
+                    .catch(() => setReactInputValue(ctx, 'input[name="ppw-accountHolderName"]', cardInfo.name).catch(() => { }));
                 await selectLikeUser(ctx, ['select[name="ppw-expirationDate_month"]'], String(Number(cardInfo.month)), 'Expiration month')
-                    .catch(() => setReactSelectValue(ctx, 'select[name="ppw-expirationDate_month"]', String(Number(cardInfo.month))).catch(() => {}));
+                    .catch(() => setReactSelectValue(ctx, 'select[name="ppw-expirationDate_month"]', String(Number(cardInfo.month))).catch(() => { }));
                 await selectLikeUser(ctx, ['select[name="ppw-expirationDate_year"]'], String(cardInfo.year), 'Expiration year')
-                    .catch(() => setReactSelectValue(ctx, 'select[name="ppw-expirationDate_year"]', String(cardInfo.year)).catch(() => {}));
+                    .catch(() => setReactSelectValue(ctx, 'select[name="ppw-expirationDate_year"]', String(cardInfo.year)).catch(() => { }));
                 if (cardInfo.cvc) await fillCvvAcrossFrames(targetPage, cardInfo.cvc, 5000);
 
                 await new Promise(r => setTimeout(r, 500));
@@ -1096,7 +1490,7 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
         // ── Step 8: Address confirmation + result wait ─────────────────
         console.log('Bước 8: chờ kết quả submit thẻ...');
 
-        const result = await waitForCardSubmitResult(page, cardInfo.number.slice(-4), 5000);
+        const result = await waitForCardSubmitResult(page, cardInfo.number.slice(-4), 30000, cardInfo);
         if (!result.success) {
             return {
                 success: false,
@@ -1114,7 +1508,7 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
         const checkAfterDelayMs = getCheckAfterDelayMs();
         console.log(`Chờ ${Math.max(Math.round(checkAfterDelayMs / 1000), 1)} giây trước khi reload...`);
         await new Promise(r => setTimeout(r, checkAfterDelayMs));
-        
+
         console.log('Đang reload trang để xác minh trạng thái thẻ...');
         try {
             await safePageReload(page, 5000);
@@ -1142,7 +1536,9 @@ async function addCard(page, cardInfo, retryCount = 0, shouldVerify = true) {
                 console.log(`Phát hiện URL ảnh của thẻ ***${last4}: ${imgUrl}`);
                 const dieUrls = [
                     'https://m.media-amazon.com/images/I/41MGiaNMk5L._SL85_.png',
-                    'https://m.media-amazon.com/images/I/81NBfFByidL._SL85_.png'
+                    'https://m.media-amazon.com/images/I/81NBfFByidL._SL85_.png',
+                    'https://m.media-amazon.com/images/G/01/payments-portal/r1/credit-card-image-blank._CB645132923_.png',
+                    'https://m.media-amazon.com/images/G/09/payments-portal/r1/credit-card-image-blank._CB647740938_.png'
                 ];
                 if (dieUrls.includes(imgUrl)) {
                     console.log(`Thẻ ***${last4} là DIE (khớp ảnh bị hạn chế: ${imgUrl})`);

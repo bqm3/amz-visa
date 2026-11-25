@@ -118,13 +118,13 @@ function markAccountLocked(email, reason = 'ACCOUNT_LOCKED') {
 
 function isAccountLockedError(error) {
     const message = String(error && (error.message || error.error || error) || '');
-    return message.includes('ACCOUNT_LOCKED') || message.includes('account-status.amazon.com');
+    return message.includes('ACCOUNT_LOCKED') || message.includes('account-status.amazon.co.jp');
 }
 
 async function isAccountLockedPage(page) {
     try {
         if (!page || page.isClosed()) return false;
-        if (page.url().includes('account-status.amazon.com')) return true;
+        if (page.url().includes('account-status.amazon.co.jp')) return true;
         return await page.evaluate(() => {
             const text = (document.body && document.body.innerText || '').toLowerCase();
             return text.includes('account locked temporarily') ||
@@ -144,7 +144,7 @@ async function isAccountLockedPage(page) {
 async function closeBrowserSafe(browser) {
     try {
         if (browser) await browser.close();
-    } catch (e) {}
+    } catch (e) { }
 }
 
 async function switchToNextAccount(chromeIndex, browser, proxy, delay = 5000) {
@@ -209,19 +209,19 @@ function writeCardToCheckFile(card) {
 function getNextCard() {
     while (sharedCardQueue.length > 0) {
         const card = sharedCardQueue.shift();
-        
+
         // Check if card already in checkcard.txt → skip
         if (isCardInCheckFile(card)) {
             console.log(`Thẻ ***${getCardLast4(card)} đã có trong checkcard.txt, bỏ qua`);
             continue;
         }
-        
+
         // Skip already processed cards (from cardTracker)
         if (cardTracker.isProcessed(card)) {
             console.log(`Thẻ ***${getCardLast4(card)} đã xử lý trước đó, bỏ qua`);
             continue;
         }
-        
+
         // Card is available - write to checkcard.txt to "claim" it
         writeCardToCheckFile(card);
         return card;
@@ -382,250 +382,250 @@ async function startAccountSession(chromeIndex, accountStr, proxy, retryCount = 
     let browser = null;
 
     try {
-    let [email, pass, secret] = accountStr.split("|");
+        let [email, pass, secret] = accountStr.split("|");
 
-    if (data.childCount[email] >= 80) {
-        console.app(`Chrome ${chromeIndex + 1}: ${email} đã đạt giới hạn thẻ, thử account tiếp theo`);
-        const nextAcc = getNextAccount();
-        if (nextAcc) {
-            return startAccountSession(chromeIndex, nextAcc, proxy, 0);
-        } else {
-            console.app(`Chrome ${chromeIndex + 1}: đã hết account khả dụng`);
-            return;
-        }
-    }
-
-    console.log(`Chrome ${chromeIndex + 1}: bắt đầu phiên cho ${email} (${data.childCount[email] || 0}/80)`);
-    console.app(`🔐 Chrome ${chromeIndex + 1}: ${email} (${data.childCount[email] || 0}/80)`);
-
-    const windowPosition = windowManager.getNextPosition();
-
-    if (!global.data.settings) {
-        global.data.settings = {};
-    }
-    if (!global.data.parentAcc) {
-        global.data.parentAcc = {};
-    }
-
-    if (proxy) {
-        console.log(`Chrome ${chromeIndex + 1}: kiểm tra proxy ${proxy.user}@${proxy.host}:${proxy.port}`);
-    }
-
-    const userDataDir = path.join(dataDir, 'chrome-profiles', `scan-${Date.now()}-${chromeIndex + 1}-${Math.random().toString(16).slice(2)}`);
-    const defaultProfileDir = path.join(userDataDir, 'Default');
-    fs.mkdirSync(defaultProfileDir, { recursive: true });
-    fs.writeFileSync(path.join(defaultProfileDir, 'Preferences'), JSON.stringify({
-        credentials_enable_service: false,
-        profile: {
-            password_manager_enabled: false,
-            password_manager_leak_detection: false,
-            default_content_setting_values: {
-                notifications: 2
-            }
-        },
-        autofill: {
-            profile_enabled: false,
-            credit_card_enabled: false,
-            credit_card_fido_auth_enabled: false
-        },
-        payments: {
-            can_make_payment_enabled: false
-        }
-    }, null, 2), 'utf8');
-
-    const chromePath = findChrome();
-    const launchOptions = {
-        headless: !global.data.settings.showBrowser && global.data.parentAcc.geminiKey != "",
-        timeout: 60000,
-        userDataDir,
-        ...(chromePath ? { executablePath: chromePath } : {}),
-        prefs: {
-            credentials_enable_service: false,
-            'profile.password_manager_enabled': false,
-            'profile.password_manager_leak_detection': false,
-            'autofill.profile_enabled': false,
-            'autofill.credit_card_enabled': false,
-            'autofill.credit_card_fido_auth_enabled': false,
-            'payments.can_make_payment_enabled': false,
-            'profile.default_content_setting_values.notifications': 2
-        },
-        args: [
-            ...(proxy ? [`--proxy-server=${proxy.host}:${proxy.port}`] : []),
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-web-security',
-            '--ignore-certificate-errors',
-            '--disable-infobars',
-            `--window-position=${windowPosition.x},${windowPosition.y}`,
-            `--window-size=${windowPosition.width},${windowPosition.height}`,
-            '--disable-dev-shm-usage',
-            '--disable-extensions',
-            '--disable-gpu',
-            '--disable-save-password-bubble',
-            '--disable-autofill-keyboard-accessory-view',
-            '--disable-autofill-keyboard-accessory',
-            '--disable-autofill-type-predictions',
-            '--disable-translate',
-            '--disable-features=VizDisplayCompositor,AutofillServerCommunication,AutofillEnableAccountWalletStorage,PasswordManagerOnboarding,PasswordManagerSettingsMigration',
-            '--disable-password-generation',
-            '--disable-password-manager-reauthentication',
-            '--password-store=basic',
-            '--use-mock-keychain',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-default-apps',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--proxy-bypass-list=<-loopback>',
-            '--disable-proxy-certificate-handler',
-            '--ignore-ssl-errors',
-            '--ignore-certificate-errors-spki-list',
-            '--ignore-ssl-errors-list',
-            '--allow-running-insecure-content'
-        ],
-        ignoreDefaultArgs: ['--enable-automation']
-    };
-
-    try {
-        browser = await puppeteer.launch(launchOptions);
-    } catch (launchError) {
-        const errMsg = String(launchError.message || '');
-        if (errMsg.includes('Could not find Chrome') || errMsg.includes('executablePath') || errMsg.includes('Browser was not found')) {
-            const chromePath = findChrome();
-            if (chromePath) {
-                console.log(`Chrome ${chromeIndex + 1}: thử lại với executablePath: ${chromePath}`);
-                browser = await puppeteer.launch({ ...launchOptions, executablePath: chromePath });
+        if (data.childCount[email] >= 80) {
+            console.app(`Chrome ${chromeIndex + 1}: ${email} đã đạt giới hạn thẻ, thử account tiếp theo`);
+            const nextAcc = getNextAccount();
+            if (nextAcc) {
+                return startAccountSession(chromeIndex, nextAcc, proxy, 0);
             } else {
-                console.app(`Chrome ${chromeIndex + 1}: không tìm thấy Chrome - ${launchError.message}`);
+                console.app(`Chrome ${chromeIndex + 1}: đã hết account khả dụng`);
+                return;
+            }
+        }
+
+        console.log(`Chrome ${chromeIndex + 1}: bắt đầu phiên cho ${email} (${data.childCount[email] || 0}/80)`);
+        console.app(`🔐 Chrome ${chromeIndex + 1}: ${email} (${data.childCount[email] || 0}/80)`);
+
+        const windowPosition = windowManager.getNextPosition();
+
+        if (!global.data.settings) {
+            global.data.settings = {};
+        }
+        if (!global.data.parentAcc) {
+            global.data.parentAcc = {};
+        }
+
+        if (proxy) {
+            console.log(`Chrome ${chromeIndex + 1}: kiểm tra proxy ${proxy.user}@${proxy.host}:${proxy.port}`);
+        }
+
+        const userDataDir = path.join(dataDir, 'chrome-profiles', `scan-${Date.now()}-${chromeIndex + 1}-${Math.random().toString(16).slice(2)}`);
+        const defaultProfileDir = path.join(userDataDir, 'Default');
+        fs.mkdirSync(defaultProfileDir, { recursive: true });
+        fs.writeFileSync(path.join(defaultProfileDir, 'Preferences'), JSON.stringify({
+            credentials_enable_service: false,
+            profile: {
+                password_manager_enabled: false,
+                password_manager_leak_detection: false,
+                default_content_setting_values: {
+                    notifications: 2
+                }
+            },
+            autofill: {
+                profile_enabled: false,
+                credit_card_enabled: false,
+                credit_card_fido_auth_enabled: false
+            },
+            payments: {
+                can_make_payment_enabled: false
+            }
+        }, null, 2), 'utf8');
+
+        const chromePath = findChrome();
+        const launchOptions = {
+            headless: !global.data.settings.showBrowser && global.data.parentAcc.geminiKey != "",
+            timeout: 60000,
+            userDataDir,
+            ...(chromePath ? { executablePath: chromePath } : {}),
+            prefs: {
+                credentials_enable_service: false,
+                'profile.password_manager_enabled': false,
+                'profile.password_manager_leak_detection': false,
+                'autofill.profile_enabled': false,
+                'autofill.credit_card_enabled': false,
+                'autofill.credit_card_fido_auth_enabled': false,
+                'payments.can_make_payment_enabled': false,
+                'profile.default_content_setting_values.notifications': 2
+            },
+            args: [
+                ...(proxy ? [`--proxy-server=${proxy.host}:${proxy.port}`] : []),
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-web-security',
+                '--ignore-certificate-errors',
+                '--disable-infobars',
+                `--window-position=${windowPosition.x},${windowPosition.y}`,
+                `--window-size=${windowPosition.width},${windowPosition.height}`,
+                '--disable-dev-shm-usage',
+                '--disable-extensions',
+                '--disable-gpu',
+                '--disable-save-password-bubble',
+                '--disable-autofill-keyboard-accessory-view',
+                '--disable-autofill-keyboard-accessory',
+                '--disable-autofill-type-predictions',
+                '--disable-translate',
+                '--disable-features=VizDisplayCompositor,AutofillServerCommunication,AutofillEnableAccountWalletStorage,PasswordManagerOnboarding,PasswordManagerSettingsMigration',
+                '--disable-password-generation',
+                '--disable-password-manager-reauthentication',
+                '--password-store=basic',
+                '--use-mock-keychain',
+                '--disable-component-extensions-with-background-pages',
+                '--disable-default-apps',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--proxy-bypass-list=<-loopback>',
+                '--disable-proxy-certificate-handler',
+                '--ignore-ssl-errors',
+                '--ignore-certificate-errors-spki-list',
+                '--ignore-ssl-errors-list',
+                '--allow-running-insecure-content'
+            ],
+            ignoreDefaultArgs: ['--enable-automation']
+        };
+
+        try {
+            browser = await puppeteer.launch(launchOptions);
+        } catch (launchError) {
+            const errMsg = String(launchError.message || '');
+            if (errMsg.includes('Could not find Chrome') || errMsg.includes('executablePath') || errMsg.includes('Browser was not found')) {
+                const chromePath = findChrome();
+                if (chromePath) {
+                    console.log(`Chrome ${chromeIndex + 1}: thử lại với executablePath: ${chromePath}`);
+                    browser = await puppeteer.launch({ ...launchOptions, executablePath: chromePath });
+                } else {
+                    console.app(`Chrome ${chromeIndex + 1}: không tìm thấy Chrome - ${launchError.message}`);
+                    const nextAcc = getNextAccount();
+                    if (nextAcc) {
+                        setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 5000);
+                    }
+                    return;
+                }
+            } else {
+                console.app(`Chrome ${chromeIndex + 1}: mở Chrome thất bại - ${launchError.message}`);
+                return;
+            }
+        }
+
+        const page = await browser.newPage();
+
+        await page.setViewport({
+            width: windowPosition.width - 20,
+            height: windowPosition.height - 100
+        });
+
+        if (proxy && proxy.user && proxy.pass) {
+            await page.authenticate({
+                username: proxy.user,
+                password: proxy.pass
+            });
+        }
+
+        await page.setDefaultNavigationTimeout(90000);
+        await page.setDefaultTimeout(90000);
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+        // Test proxy
+        if (proxy) {
+            try {
+                await page.goto('https://httpbin.org/ip', { waitUntil: 'networkidle2', timeout: 30000 });
+                const proxyIP = await page.evaluate(() => {
+                    try { return JSON.parse(document.body.innerText).origin; } catch { return 'Unknown'; }
+                });
+                console.app(`Chrome ${chromeIndex + 1}: IP proxy: ${proxyIP}`);
+            } catch (proxyTestError) {
+                console.app(`Chrome ${chromeIndex + 1}: proxy lỗi cho ${email}`);
+                await browser.close();
                 const nextAcc = getNextAccount();
                 if (nextAcc) {
                     setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 5000);
                 }
                 return;
             }
-        } else {
-            console.app(`Chrome ${chromeIndex + 1}: mở Chrome thất bại - ${launchError.message}`);
-            return;
         }
-    }
 
-    const page = await browser.newPage();
-    
-    await page.setViewport({
-        width: windowPosition.width - 20,
-        height: windowPosition.height - 100
-    });
+        let form = {
+            email,
+            pass,
+            code: secret,
+            proxy: proxy ? { host: proxy.host, port: proxy.port, username: proxy.user, password: proxy.pass } : null
+        };
 
-    if (proxy && proxy.user && proxy.pass) {
-        await page.authenticate({
-            username: proxy.user,
-            password: proxy.pass
-        });
-    }
-
-    await page.setDefaultNavigationTimeout(90000);
-    await page.setDefaultTimeout(90000);
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-    // Test proxy
-    if (proxy) {
+        // Login
         try {
-            await page.goto('https://httpbin.org/ip', { waitUntil: 'networkidle2', timeout: 30000 });
-            const proxyIP = await page.evaluate(() => {
-                try { return JSON.parse(document.body.innerText).origin; } catch { return 'Unknown'; }
-            });
-            console.app(`Chrome ${chromeIndex + 1}: IP proxy: ${proxyIP}`);
-        } catch (proxyTestError) {
-            console.app(`Chrome ${chromeIndex + 1}: proxy lỗi cho ${email}`);
+            await require(path.join(__dirname, "..", "api", "login.js"))(page, form);
+        } catch (loginError) {
+            if (isAccountLockedError(loginError) || await isAccountLockedPage(page)) {
+                console.app(`Chrome ${chromeIndex + 1}: account bị khóa ${email}`);
+                markAccountLocked(email, 'ACCOUNT_LOCKED');
+                await switchToNextAccount(chromeIndex, browser, proxy, 5000);
+                return;
+            }
+
+            console.app(`Chrome ${chromeIndex + 1}: login thất bại cho ${email}`);
             await browser.close();
+            // Try next account with same Chrome instance
             const nextAcc = getNextAccount();
             if (nextAcc) {
-                setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 5000);
+                setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 10000);
             }
             return;
         }
-    }
 
-    let form = {
-        email,
-        pass,
-        code: secret,
-        proxy: proxy ? { host: proxy.host, port: proxy.port, username: proxy.user, password: proxy.pass } : null
-    };
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // Login
-    try {
-        await require(path.join(__dirname, "..", "api", "login.js"))(page, form);
-    } catch (loginError) {
-        if (isAccountLockedError(loginError) || await isAccountLockedPage(page)) {
-            console.app(`Chrome ${chromeIndex + 1}: account bị khóa ${email}`);
+        // Check if account suspended/locked
+        if (await isAccountLockedPage(page)) {
+            console.app(`Chrome ${chromeIndex + 1}: account bị tạm ngưng ${email}`);
             markAccountLocked(email, 'ACCOUNT_LOCKED');
             await switchToNextAccount(chromeIndex, browser, proxy, 5000);
             return;
         }
 
-        console.app(`Chrome ${chromeIndex + 1}: login thất bại cho ${email}`);
-        await browser.close();
-        // Try next account with same Chrome instance
-        const nextAcc = getNextAccount();
-        if (nextAcc) {
-            setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 10000);
-        }
-        return;
-    }
+        let linkNow = page.url();
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    // Check if account suspended/locked
-    if (await isAccountLockedPage(page)) {
-        console.app(`Chrome ${chromeIndex + 1}: account bị tạm ngưng ${email}`);
-        markAccountLocked(email, 'ACCOUNT_LOCKED');
-        await switchToNextAccount(chromeIndex, browser, proxy, 5000);
-        return;
-    }
-
-    let linkNow = page.url();
-
-    // Ensure we're on Amazon
-    if (!linkNow.includes('amazon.com') || linkNow.includes('/ap/') || linkNow.includes('/gp/')) {
-        try {
-            await page.goto('https://www.amazon.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
-        } catch (navError) {}
-        linkNow = page.url();
-    }
-
-    if (global.data.settings.addAddress) {
-        // Check address book
-        try {
-            await require(path.join(__dirname, "..", "api", "addAddress.js")).gotoBook(page);
-            if (!(await require(path.join(__dirname, "..", "api", "addAddress.js")).checkBook(page))) {
-                await require(path.join(__dirname, "..", "api", "addAddress.js")).addAddress(page);
-            }
+        // Ensure we're on Amazon
+        if (!linkNow.includes('amazon.co.jp') || linkNow.includes('/ap/') || linkNow.includes('/gp/')) {
             try {
-                await page.goto(linkNow, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            } catch (navError) {}
-        } catch (addressError) {
-            console.app(`Chrome ${chromeIndex + 1}: lỗi thêm địa chỉ cho ${email}`);
+                await page.goto('https://www.amazon.co.jp', { waitUntil: 'domcontentloaded', timeout: 30000 });
+            } catch (navError) { }
+            linkNow = page.url();
         }
-    } else {
-        console.app(`Chrome ${chromeIndex + 1}: bỏ qua bước thêm địa chỉ cho ${email}`);
-    }
 
-    let res = await require(path.join(__dirname, "..", "api", "goPayment.js"))(page);
-    if (res.error) {
-        console.app(`Chrome ${chromeIndex + 1}: lỗi mở trang thanh toán cho ${email}`);
-        await browser.close();
-        const nextAcc = getNextAccount();
-        if (nextAcc) {
-            setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 10000);
+        if (global.data.settings.addAddress) {
+            // Check address book
+            try {
+                await require(path.join(__dirname, "..", "api", "addAddress.js")).gotoBook(page);
+                if (!(await require(path.join(__dirname, "..", "api", "addAddress.js")).checkBook(page))) {
+                    await require(path.join(__dirname, "..", "api", "addAddress.js")).addAddress(page);
+                }
+                try {
+                    await page.goto(linkNow, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                } catch (navError) { }
+            } catch (addressError) {
+                console.app(`Chrome ${chromeIndex + 1}: lỗi thêm địa chỉ cho ${email}`);
+            }
+        } else {
+            console.app(`Chrome ${chromeIndex + 1}: bỏ qua bước thêm địa chỉ cho ${email}`);
         }
-        return;
-    }
 
-    await clearExistingCards(page, email, chromeIndex);
+        let res = await require(path.join(__dirname, "..", "api", "goPayment.js"))(page);
+        if (res.error) {
+            console.app(`Chrome ${chromeIndex + 1}: lỗi mở trang thanh toán cho ${email}`);
+            await browser.close();
+            const nextAcc = getNextAccount();
+            if (nextAcc) {
+                setTimeout(() => startAccountSession(chromeIndex, nextAcc, proxy), 10000);
+            }
+            return;
+        }
 
-    // Start processing card queue for this Chrome instance
-    processCardQueue(page, browser, email, chromeIndex, proxy, accountStr);
+        await clearExistingCards(page, email, chromeIndex);
+
+        // Start processing card queue for this Chrome instance
+        processCardQueue(page, browser, email, chromeIndex, proxy, accountStr);
 
     } catch (sessionError) {
         // ✅ TOP-LEVEL CATCH: Prevent Chrome crash on any unhandled error
@@ -1039,7 +1039,7 @@ async function clearExistingCards(page, email, chromeIndex) {
 
         const currentUrl = page.url();
         if (!currentUrl.includes('yourpayments') || !currentUrl.includes('wallet')) {
-            await page.goto('https://www.amazon.com/cpe/yourpayments/wallet', {
+            await page.goto('https://www.amazon.co.jp/cpe/yourpayments/wallet', {
                 waitUntil: 'domcontentloaded',
                 timeout: 30000
             });
